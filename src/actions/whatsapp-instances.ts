@@ -31,6 +31,16 @@ const instanceSchema = z.object({
   /** Vazio na edição = mantém o token atual. */
   instanceToken: z.string().max(200).nullable().optional(),
   phoneNumber: z.string().max(30).nullable().optional(),
+  /**
+   * ID do número na Cloud API. É a CHAVE da integração oficial: o webhook casa
+   * o evento recebido pelo `metadata.phone_number_id` e o envio faz
+   * POST {phone_number_id}/messages. Linha oficial sem ele não recebe nem envia.
+   */
+  phoneNumberId: z
+    .string()
+    .regex(/^\d{5,25}$/, 'phone_number_id é só dígitos (copie da Meta)')
+    .nullable()
+    .optional(),
   isActive: z.boolean().default(true),
 });
 
@@ -44,6 +54,7 @@ export interface WhatsappInstanceRow {
   color: string | null;
   provider: string;
   phone_number: string | null;
+  phone_number_id: string | null;
   is_active: boolean;
   is_connected: boolean;
   last_connected_at: string | null;
@@ -79,6 +90,7 @@ export async function listWhatsappInstances(): Promise<WhatsappInstanceRow[]> {
     color: row.color,
     provider: row.provider,
     phone_number: row.phone_number,
+    phone_number_id: row.phone_number_id,
     is_active: row.is_active,
     is_connected: row.is_connected,
     last_connected_at: row.last_connected_at,
@@ -122,6 +134,7 @@ export async function createWhatsappInstance(
       provider: d.provider,
       instance_token: d.instanceToken?.trim() || null,
       phone_number: d.phoneNumber?.trim() || null,
+      phone_number_id: d.phoneNumberId?.trim() || null,
       is_active: d.isActive,
     })
     .select('id')
@@ -157,6 +170,7 @@ export async function updateWhatsappInstance(
       color: d.color ?? null,
       provider: d.provider,
       phone_number: d.phoneNumber?.trim() || null,
+      phone_number_id: d.phoneNumberId?.trim() || null,
       is_active: d.isActive,
       // Token vazio na edição = mantém o atual (não dá para reexibir o segredo).
       ...(token ? { instance_token: token } : {}),
@@ -210,12 +224,18 @@ export async function testWhatsappInstanceConnection(
   const admin = createAdminClient();
   const { data: instance } = await admin
     .from('whatsapp_instances')
-    .select('id, name, instance_token, provider, is_connected')
+    .select('id, name, instance_token, provider, is_connected, phone_number_id')
     .eq('id', id)
     .maybeSingle();
   if (!instance) return { ok: false, error: 'Linha não encontrada' };
 
-  const status = await fetchOfficialWhatsappStatus();
+  // Checa a LINHA, não o env: num cadastro multi-número o teste tem que falar
+  // com o phone_number_id daquela instância, senão todas reportam o status de
+  // um único número (e uma linha mal configurada aparece como conectada).
+  const status = await fetchOfficialWhatsappStatus({
+    phoneNumberId: instance.phone_number_id,
+    accessToken: instance.instance_token,
+  });
   const connected = status.configured && !status.error;
 
   await admin

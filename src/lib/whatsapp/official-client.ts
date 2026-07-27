@@ -5,7 +5,7 @@ import {
   type MetaResult,
   type OfficialVia,
 } from '@/lib/meta/client';
-import { META_GRAPH_BASE, isConfigured, isWhatsappConfigured, metaEnv } from '@/lib/meta/config';
+import { META_GRAPH_BASE, isConfigured } from '@/lib/meta/config';
 import type { MessageType } from '@/types/chat';
 
 /**
@@ -48,19 +48,28 @@ export interface OfficialWhatsappStatus {
 /**
  * Consulta o número oficial na Graph API (GET {phone_number_id}) para confirmar
  * que o token e o número estão válidos antes de enviar. Nunca lança.
+ *
+ * Com `via`, checa a LINHA informada (multi-número: cada instância tem o seu
+ * phone_number_id e, se estiver em outra WABA, o seu próprio token). Sem `via`,
+ * cai no número do env.
  */
-export async function fetchOfficialWhatsappStatus(): Promise<OfficialWhatsappStatus> {
-  if (!isWhatsappConfigured()) {
+export async function fetchOfficialWhatsappStatus(
+  via?: OfficialVia,
+): Promise<OfficialWhatsappStatus> {
+  const { phoneNumberId, accessToken } = resolveOfficialVia(via);
+  if (!isConfigured(phoneNumberId) || !isConfigured(accessToken)) {
     return {
       configured: false,
       displayPhoneNumber: null,
       verifiedName: null,
       qualityRating: null,
-      error: 'WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN ainda não configurados (pendente).',
+      error: via
+        ? 'Linha sem phone_number_id/token — preencha os dois no cadastro da instância.'
+        : 'WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN ainda não configurados (pendente).',
     };
   }
   const fields = 'display_phone_number,verified_name,quality_rating';
-  const url = `${META_GRAPH_BASE}/${metaEnv.whatsappPhoneNumberId}?fields=${fields}&access_token=${metaEnv.whatsappToken}`;
+  const url = `${META_GRAPH_BASE}/${phoneNumberId}?fields=${fields}&access_token=${accessToken}`;
   try {
     const res = await fetch(url, { method: 'GET' });
     const json = (await res.json().catch(() => ({}))) as {

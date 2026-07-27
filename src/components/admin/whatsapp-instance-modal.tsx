@@ -33,9 +33,11 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
   const [name, setName] = useState('');
   const [label, setLabel] = useState('');
   const [color, setColor] = useState('#22c55e');
-  const [provider, setProvider] = useState<WhatsappProvider>('uazapi');
+  // O Leibniz opera só na API oficial — 'official' é o padrão de uma linha nova.
+  const [provider, setProvider] = useState<WhatsappProvider>('official');
   const [token, setToken] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneNumberId, setPhoneNumberId] = useState('');
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
@@ -43,9 +45,10 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
     setName(instance?.name ?? '');
     setLabel(instance?.label ?? '');
     setColor(instance?.color ?? '#22c55e');
-    setProvider(isWhatsappProvider(instance?.provider) ? instance.provider : 'uazapi');
+    setProvider(isWhatsappProvider(instance?.provider) ? instance.provider : 'official');
     setToken('');
     setPhoneNumber(instance?.phone_number ?? '');
+    setPhoneNumberId(instance?.phone_number_id ?? '');
     setIsActive(instance?.is_active ?? true);
   }, [open, instance]);
 
@@ -58,6 +61,7 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
       provider,
       instanceToken: token.trim() || null,
       phoneNumber: phoneNumber.trim() || null,
+      phoneNumberId: phoneNumberId.trim() || null,
       isActive,
     };
     startTransition(async () => {
@@ -139,7 +143,13 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
         </Select>
 
         <Input
-          label={instance?.hasToken ? 'Token da instância (vazio = manter atual)' : 'Token da instância UaZAPI'}
+          label={
+            instance?.hasToken
+              ? 'Token da instância (vazio = manter atual)'
+              : provider === 'official'
+                ? 'Token de acesso da WABA'
+                : 'Token da instância UaZAPI'
+          }
           type="password"
           value={token}
           onChange={(e) => setToken(e.target.value)}
@@ -151,6 +161,22 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
           value={phoneNumber}
           onChange={(e) => setPhoneNumber(e.target.value)}
         />
+        {provider === 'official' && (
+          <div className="flex flex-col gap-1">
+            <Input
+              label="ID do número na Meta (phone_number_id)"
+              value={phoneNumberId}
+              onChange={(e) => setPhoneNumberId(e.target.value)}
+              placeholder="1276125232244518"
+              inputMode="numeric"
+              required
+            />
+            <span className="text-xs text-brand-500">
+              Só dígitos. É por ele que o webhook identifica a linha e o envio escolhe o
+              número — sem isso a linha não recebe nem envia.
+            </span>
+          </div>
+        )}
 
         <label className="flex items-center gap-2 text-sm text-brand-700">
           <input
