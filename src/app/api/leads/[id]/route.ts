@@ -24,10 +24,11 @@ async function getVisibleConversationId(leadId: string): Promise<string | null> 
 export const dynamic = 'force-dynamic';
 
 interface RouteContext {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export async function GET(_req: Request, { params }: RouteContext) {
+export async function GET(_req: Request, props: RouteContext) {
+  const params = await props.params;
   const isDemo = getDemoMode();
   // Tenta no modo atual; se não achar, faz fallback (cobre o caso de abrir drawer
   // de um lead após trocar de modo na mesma sessão sem refresh).

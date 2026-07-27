@@ -1,5 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, type UnsafeUnwrappedCookies } from 'next/headers';
 import type { Database } from '@/types/database';
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
@@ -14,7 +14,7 @@ export function createClient() {
     );
   }
 
-  const cookieStore = cookies();
+  const cookieStore = (cookies() as unknown as UnsafeUnwrappedCookies);
 
   return createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {

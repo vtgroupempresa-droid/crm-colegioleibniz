@@ -67,6 +67,12 @@ export const metaEnv = {
   get instagramUserId() {
     return process.env.INSTAGRAM_USER_ID;
   },
+  // App Secret DO INSTAGRAM (produto "Instagram" no painel do app), distinto do
+  // App Secret do Facebook. A Meta assina os eventos `object=instagram` com ele,
+  // então sem este valor as DMs chegam e são descartadas por assinatura inválida.
+  get instagramAppSecret() {
+    return process.env.INSTAGRAM_APP_SECRET;
+  },
 };
 
 /** Logs detalhados no processamento de webhooks da Meta (ativar DEBUG_WEBHOOK=true). */

@@ -5,7 +5,7 @@ import { CalendarView } from '@/components/kanban/calendar-view';
 export const dynamic = 'force-dynamic';
 
 interface CalendarioPageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 function parseMonth(param: string | undefined): { year: number; month: number } {
@@ -22,7 +22,8 @@ function ym(year: number, month: number): string {
 }
 
 /** Calendário mensal de visitas (cor por atendente, filtros, clique = editar). */
-export default async function CalendarioPage({ searchParams }: CalendarioPageProps) {
+export default async function CalendarioPage(props: CalendarioPageProps) {
+  const searchParams = await props.searchParams;
   const monthParam = Array.isArray(searchParams.month) ? searchParams.month[0] : searchParams.month;
   const { year, month } = parseMonth(monthParam);
 

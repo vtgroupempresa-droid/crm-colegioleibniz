@@ -1,8 +1,13 @@
 -- ============================================================
 -- CRM Colégio Leibniz — seed inicial
--- Pipeline comercial mapeado na reunião:
+-- Pipeline comercial mapeado na reunião, nesta ordem:
 -- Novo Lead → Primeiro Contato → Visita Presencial → Em Negociação
---   → Follow-Up → Cliente Fechado (+ Perdido)
+--   → Cliente Fechado → Follow-Up (+ Perdido)
+--
+-- Follow-Up vem DEPOIS de Cliente Fechado de propósito: é a coluna de
+-- retomada das famílias que não decidiram na hora, não uma etapa que o
+-- lead percorre antes de fechar.
+--
 -- Pipeline pós-matrícula: terreno para integração EasySchool.
 -- ============================================================
 
@@ -13,8 +18,8 @@ values
   ('comercial', 'primeiro_contato',  'Primeiro Contato',  2, '#6366f1', false, false, 15),
   ('comercial', 'visita_presencial', 'Visita Presencial', 3, '#8b5cf6', false, false, 45),
   ('comercial', 'em_negociacao',     'Em Negociação',     4, '#f59e0b', false, false, 70),
-  ('comercial', 'follow_up',         'Follow-Up',         5, '#0ea5e9', false, false, 40),
-  ('comercial', 'cliente_fechado',   'Cliente Fechado',   6, '#16a34a', false, true,  100),
+  ('comercial', 'cliente_fechado',   'Cliente Fechado',   5, '#16a34a', false, true,  100),
+  ('comercial', 'follow_up',         'Follow-Up',         6, '#0ea5e9', false, false, 40),
   ('comercial', 'perdido',           'Perdido',           7, '#dc2626', false, true,  0);
 
 insert into pipeline_stages

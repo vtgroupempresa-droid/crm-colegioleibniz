@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic';
 const PREVIEW_LIMIT = 100;
 
 interface PageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 function firstParam(raw: string | string[] | undefined): string {
@@ -32,7 +32,8 @@ function firstParam(raw: string | string[] | undefined): string {
  * funil, período, nível de ensino, responsável e quem fechou a matrícula;
  * exporta em CSV a base filtrada inteira.
  */
-export default async function RelatoriosPage({ searchParams }: PageProps) {
+export default async function RelatoriosPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const session = await getSession();
   if (!session) redirect('/login');
   if (!isAdmin(session.role)) redirect('/');

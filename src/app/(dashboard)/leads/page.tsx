@@ -81,11 +81,12 @@ function parseCreatedWindow(searchParams: SearchParams): {
   };
 }
 
-export default async function LeadsPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
+export default async function LeadsPage(
+  props: {
+    searchParams: Promise<SearchParams>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const isDemo = getDemoMode();
   const createdWindow = parseCreatedWindow(searchParams);
   const [result, stats, stagesByPipeline] = await Promise.all([

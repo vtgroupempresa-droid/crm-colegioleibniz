@@ -2,10 +2,11 @@ import { Card } from '@/components/ui/card';
 import { LoginForm } from './login-form';
 
 interface PageProps {
-  searchParams: { redirectTo?: string };
+  searchParams: Promise<{ redirectTo?: string }>;
 }
 
-export default function LoginPage({ searchParams }: PageProps) {
+export default async function LoginPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   return (
     <main className="flex min-h-screen items-center justify-center bg-canvas px-4">
       <div className="w-full max-w-md">

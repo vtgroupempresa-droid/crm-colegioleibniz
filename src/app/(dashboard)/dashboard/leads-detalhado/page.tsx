@@ -19,7 +19,7 @@ import { PIPELINE_LABELS, isPipelineKind } from '@/types/pipeline';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 function firstParam(raw: string | string[] | undefined): string {
@@ -36,7 +36,8 @@ const INTEREST_TONE: Record<InterestLevel, string> = {
  * Rastreio lead a lead (Categoria 1): auditoria individual de qualquer lead,
  * com busca, período e canal — os filtros padronizados do sistema.
  */
-export default async function LeadsDetalhadoPage({ searchParams }: PageProps) {
+export default async function LeadsDetalhadoPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const isDemo = getDemoMode();
   const { kind, from, to } = parsePeriodParams(searchParams);
   const period = resolvePeriod(kind, { from, to });

@@ -67,7 +67,7 @@ const SOON: IntegrationCard[] = [
 ];
 
 interface IntegracoesPageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 const GOOGLE_CALENDAR_FEEDBACK: Record<string, { tone: 'ok' | 'error'; message: string }> = {
@@ -77,7 +77,8 @@ const GOOGLE_CALENDAR_FEEDBACK: Record<string, { tone: 'ok' | 'error'; message: 
   erro_token: { tone: 'error', message: 'Falha ao trocar o código por tokens. Tente de novo.' },
 };
 
-export default async function IntegracoesPage({ searchParams }: IntegracoesPageProps) {
+export default async function IntegracoesPage(props: IntegracoesPageProps) {
+  const searchParams = await props.searchParams;
   const session = await getSession();
   if (!session) redirect('/login');
   if (!isAdmin(session.role)) redirect('/');
