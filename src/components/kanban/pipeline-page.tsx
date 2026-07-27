@@ -7,6 +7,7 @@ import {
   type AssignedFilter,
   type BoardSort,
   type InterestFilter,
+  type QualificationFilter,
 } from '@/actions/leads-queries';
 import { KanbanBoard } from '@/components/kanban/kanban-board';
 import type { SourceFilter } from '@/types/lead';
@@ -21,6 +22,8 @@ interface PipelinePageProps {
   sourceFilter?: SourceFilter;
   /** Filtro de responsável: 'all' | 'none' | uuid do usuário. */
   assignedFilter?: AssignedFilter;
+  /** Filtro do resumo mais recente de atendimento. */
+  qualificationFilter?: QualificationFilter;
   /** Ordenação das colunas (Novo Lead é sempre por data). */
   sort?: BoardSort;
 }
@@ -42,11 +45,12 @@ export async function PipelinePage({
   interestFilter = 'all',
   sourceFilter = 'all',
   assignedFilter = 'all',
+  qualificationFilter = 'all',
   sort = 'data',
 }: PipelinePageProps) {
   const stages = await getStagesForPipeline(pipeline);
   const slugs = stages.map((s) => s.slug);
-  const filterOpts = { isDemo, interestFilter, sourceFilter, assignedFilter };
+  const filterOpts = { isDemo, interestFilter, sourceFilter, assignedFilter, qualificationFilter };
 
   const [counts, pages, stagesByPipeline] = await Promise.all([
     getKanbanColumnCounts(pipeline, slugs, filterOpts),
@@ -78,6 +82,7 @@ export async function PipelinePage({
           interestFilter={interestFilter}
           sourceFilter={sourceFilter}
           assignedFilter={assignedFilter}
+          qualificationFilter={qualificationFilter}
           stagesByPipeline={stagesByPipeline}
         />
       </div>

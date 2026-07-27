@@ -6,6 +6,7 @@ import {
   searchKanbanLeads,
   type AssignedFilter,
   type InterestFilter,
+  type QualificationFilter,
   type BoardSort,
   type KanbanLeadRow,
 } from './leads-queries';
@@ -26,6 +27,7 @@ export interface LoadColumnArgs {
   sourceFilter: SourceFilter;
   assignedFilter: AssignedFilter;
   interestFilter?: InterestFilter;
+  qualificationFilter?: QualificationFilter;
   isDemo?: boolean;
 }
 
@@ -39,6 +41,7 @@ export async function loadKanbanColumn(args: LoadColumnArgs): Promise<KanbanLead
     sourceFilter: args.sourceFilter,
     assignedFilter: args.assignedFilter,
     interestFilter: args.interestFilter,
+    qualificationFilter: args.qualificationFilter,
   });
 }
 
@@ -48,6 +51,7 @@ export interface SearchKanbanArgs {
   sourceFilter: SourceFilter;
   assignedFilter: AssignedFilter;
   interestFilter?: InterestFilter;
+  qualificationFilter?: QualificationFilter;
   isDemo?: boolean;
 }
 
@@ -59,5 +63,6 @@ export async function searchKanban(args: SearchKanbanArgs): Promise<KanbanLeadRo
     sourceFilter: args.sourceFilter,
     assignedFilter: args.assignedFilter,
     interestFilter: args.interestFilter,
+    qualificationFilter: args.qualificationFilter,
   });
 }

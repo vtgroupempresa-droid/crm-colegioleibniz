@@ -49,6 +49,7 @@ import type {
   InterestFilter,
   KanbanLeadRow,
   PipelineStageOption,
+  QualificationFilter,
 } from '@/actions/leads-queries';
 import type { Lead, SourceFilter } from '@/types/lead';
 import type { PipelineKind } from '@/types/pipeline';
@@ -85,6 +86,7 @@ interface KanbanBoardProps {
   interestFilter: InterestFilter;
   sourceFilter: SourceFilter;
   assignedFilter: AssignedFilter;
+  qualificationFilter: QualificationFilter;
   /** Stages ativos de todos os pipelines, para o modal "Mover". */
   stagesByPipeline: Record<string, PipelineStageOption[]>;
 }
@@ -143,6 +145,7 @@ export function KanbanBoard({
   interestFilter,
   sourceFilter,
   assignedFilter,
+  qualificationFilter,
   stagesByPipeline,
 }: KanbanBoardProps) {
   const router = useRouter();
@@ -184,6 +187,7 @@ export function KanbanBoard({
         interestFilter,
         sourceFilter,
         assignedFilter,
+        qualificationFilter,
         isDemo,
       });
       setEntries((prev) => {
@@ -583,6 +587,7 @@ export function KanbanBoard({
         interestFilter={interestFilter}
         sourceFilter={sourceFilter}
         assignedFilter={assignedFilter}
+        qualificationFilter={qualificationFilter}
         isDemo={isDemo}
         density={density}
         onDensityChange={setDensity}

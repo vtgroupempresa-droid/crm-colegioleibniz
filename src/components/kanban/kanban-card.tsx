@@ -10,7 +10,12 @@ import { cn } from '@/lib/utils/cn';
 import { formatDateTime, formatRelative } from '@/lib/utils/format';
 import { MAX_ATTEMPTS, formatSlaCountdown, slaStatusFor } from '@/lib/sla/rules';
 import { IcpWarningBadge } from './icp-warning-badge';
-import { LOST_REASON_LABELS, PAID_LEAD_SOURCES } from '@/types/lead';
+import {
+  isLeadQualificationStatus,
+  LEAD_QUALIFICATION_LABELS,
+  LOST_REASON_LABELS,
+  PAID_LEAD_SOURCES,
+} from '@/types/lead';
 import type { Lead, LEAD_SOURCES } from '@/types/lead';
 import type { PipelineKind } from '@/types/pipeline';
 
@@ -143,6 +148,9 @@ export function KanbanCard({
   const aptBadge = nextAppointmentAt
     ? appointmentBadge(nextAppointmentAt, appointmentConfirmed)
     : null;
+  const qualificationStatus = isLeadQualificationStatus(lead.qualification_status)
+    ? lead.qualification_status
+    : null;
 
   return (
     <div
@@ -230,6 +238,11 @@ export function KanbanCard({
       <div className="flex flex-wrap items-center gap-1.5">
         <InterestBadge lead={lead} />
         <TemperatureBadge tags={lead.tags} />
+        {qualificationStatus && (
+          <Badge tone="info" title={lead.qualification_note ?? LEAD_QUALIFICATION_LABELS[qualificationStatus]}>
+            ✨ {LEAD_QUALIFICATION_LABELS[qualificationStatus]}
+          </Badge>
+        )}
         {lead.source && (
           // Fonte paga ganha o tom da marca para diferenciar de orgânica no board.
           <Badge tone={PAID_LEAD_SOURCES.includes(lead.source) ? 'brand' : 'neutral'}>

@@ -8,7 +8,6 @@ import { AppointmentEditModal } from './appointment-edit-modal';
 import { type CalendarAppointment } from '@/actions/appointments';
 import { type ExternalCalendarEvent } from '@/actions/google-calendar';
 import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from '@/types/appointment';
-import { isCloserRole } from '@/types/user';
 
 interface Person {
   id: string;
@@ -41,6 +40,16 @@ const CLOSER_COLORS = [
   'bg-rose-500',
 ];
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const RESPONSIBLE_NAMES = ['lucilia', 'nubia', 'lorraine'];
+
+function firstNameNormalized(name: string) {
+  return name
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim()
+    .toLocaleLowerCase('pt-BR')
+    .split(/\s+/)[0];
+}
 
 export function CalendarView({
   appointments,
@@ -53,14 +62,16 @@ export function CalendarView({
   nextHref,
   todayHref,
 }: CalendarViewProps) {
-  const [closerFilter, setCloserFilter] = useState('all');
-  const [sdrFilter, setSdrFilter] = useState('all');
+  const [responsibleFilter, setResponsibleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
 
-  const closers = salespeople.filter((p) => isCloserRole(p.role));
-  const sdrs = salespeople.filter((p) => p.role === 'sdr');
+  // A equipe do Leibniz usa este filtro único no lugar dos filtros separados
+  // de closer e SDR. A comparação normalizada permite perfis como “Núbia”.
+  const responsiblePeople = RESPONSIBLE_NAMES.flatMap((expectedName) =>
+    salespeople.find((person) => firstNameNormalized(person.name) === expectedName) ?? [],
+  );
 
   // Cor consistente por closer.
   const colorByCloser = useMemo(() => {
@@ -78,12 +89,17 @@ export function CalendarView({
   const filtered = useMemo(
     () =>
       appointments.filter((a) => {
-        if (closerFilter !== 'all' && a.assignedToId !== closerFilter) return false;
-        if (sdrFilter !== 'all' && a.createdById !== sdrFilter) return false;
+        if (
+          responsibleFilter !== 'all' &&
+          a.assignedToId !== responsibleFilter &&
+          a.createdById !== responsibleFilter
+        ) {
+          return false;
+        }
         if (statusFilter !== 'all' && a.status !== statusFilter) return false;
         return true;
       }),
-    [appointments, closerFilter, sdrFilter, statusFilter],
+    [appointments, responsibleFilter, statusFilter],
   );
 
   const byDay = useMemo(() => {
@@ -151,19 +167,11 @@ export function CalendarView({
           </Link>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={closerFilter} onChange={(e) => setCloserFilter(e.target.value)}>
-            <option value="all">Todos os closers</option>
-            {closers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
-          <Select value={sdrFilter} onChange={(e) => setSdrFilter(e.target.value)}>
-            <option value="all">Todos os SDRs</option>
-            {sdrs.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
+          <Select value={responsibleFilter} onChange={(e) => setResponsibleFilter(e.target.value)}>
+            <option value="all">Responsável</option>
+            {responsiblePeople.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.name}
               </option>
             ))}
           </Select>

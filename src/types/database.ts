@@ -753,6 +753,12 @@ export type Database = {
           phone: string | null;
           phone_normalized: string | null;
           pipeline: Database['public']['Enums']['pipeline_kind'];
+          qualification_next_action: string | null;
+          qualification_next_action_at: string | null;
+          qualification_note: string | null;
+          qualification_status: string | null;
+          qualification_updated_at: string | null;
+          qualification_updated_by: string | null;
           school_year: string | null;
           source: Database['public']['Enums']['lead_source'] | null;
           stage: string;
@@ -802,6 +808,12 @@ export type Database = {
           phone?: string | null;
           phone_normalized?: string | null;
           pipeline?: Database['public']['Enums']['pipeline_kind'];
+          qualification_next_action?: string | null;
+          qualification_next_action_at?: string | null;
+          qualification_note?: string | null;
+          qualification_status?: string | null;
+          qualification_updated_at?: string | null;
+          qualification_updated_by?: string | null;
           school_year?: string | null;
           source?: Database['public']['Enums']['lead_source'] | null;
           stage: string;
@@ -851,6 +863,12 @@ export type Database = {
           phone?: string | null;
           phone_normalized?: string | null;
           pipeline?: Database['public']['Enums']['pipeline_kind'];
+          qualification_next_action?: string | null;
+          qualification_next_action_at?: string | null;
+          qualification_note?: string | null;
+          qualification_status?: string | null;
+          qualification_updated_at?: string | null;
+          qualification_updated_by?: string | null;
           school_year?: string | null;
           source?: Database['public']['Enums']['lead_source'] | null;
           stage?: string;
@@ -1366,6 +1384,16 @@ export type Database = {
         Args: never;
         Returns: Database['public']['Enums']['user_role'];
       };
+      set_lead_qualification: {
+        Args: {
+          p_lead_id: string;
+          p_next_action?: string | null;
+          p_next_action_at?: string | null;
+          p_note?: string | null;
+          p_status: string;
+        };
+        Returns: Database['public']['Tables']['leads']['Row'];
+      };
       count_activities_for_leads: {
         Args: { lead_ids: string[] };
         Returns: {
@@ -1434,6 +1462,7 @@ export type Database = {
         | 'stage_change'
         | 'appointment'
         | 'note'
+        | 'qualification'
         | 'system';
       automation_action: 'notificar' | 'criar_tarefa' | 'enviar_whatsapp';
       automation_trigger:

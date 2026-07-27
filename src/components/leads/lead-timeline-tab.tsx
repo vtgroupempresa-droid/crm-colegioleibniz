@@ -12,6 +12,7 @@ const TYPE_ICON: Record<Activity['type'], string> = {
   stage_change: '↪',
   appointment: '📅',
   note: '📝',
+  qualification: '✨',
   system: '⚙️',
 };
 
@@ -23,7 +24,7 @@ const TIMELINE_FILTER_TYPES: Record<
 > = {
   messages: ['whatsapp', 'email'],
   calls: ['call'],
-  system: ['system', 'stage_change', 'appointment'],
+  system: ['system', 'stage_change', 'appointment', 'qualification'],
 };
 
 const TIMELINE_FILTER_TABS: { value: TimelineFilter; label: string }[] = [

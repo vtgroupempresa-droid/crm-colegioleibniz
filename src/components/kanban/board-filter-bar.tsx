@@ -10,6 +10,8 @@ import {
   INTEREST_LEVEL_LABELS,
   LEAD_SOURCES,
   LEAD_SOURCE_LABELS,
+  LEAD_QUALIFICATION_LABELS,
+  LEAD_QUALIFICATION_STATUSES,
   type InterestLevel,
   type SourceFilter,
 } from '@/types/lead';
@@ -125,6 +127,7 @@ interface BoardFilterBarProps {
   sourceFilter: SourceFilter;
   /** 'all' | 'none' | uuid do responsável. */
   assignedFilter: string;
+  qualificationFilter: string;
 }
 
 /**
@@ -139,6 +142,7 @@ export function BoardFilterBar({
   interestFilter,
   sourceFilter,
   assignedFilter,
+  qualificationFilter,
 }: BoardFilterBarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -156,7 +160,7 @@ export function BoardFilterBar({
     });
   }
 
-  function setParam(key: 'interesse' | 'fonte' | 'responsavel', value: string) {
+  function setParam(key: 'interesse' | 'fonte' | 'responsavel' | 'qualificacao', value: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (value === 'all') params.delete(key);
     else params.set(key, value);
@@ -168,6 +172,7 @@ export function BoardFilterBar({
     params.delete('interesse');
     params.delete('fonte');
     params.delete('responsavel');
+    params.delete('qualificacao');
     setTerm('');
     push(params);
   }
@@ -195,9 +200,18 @@ export function BoardFilterBar({
     { value: 'none', label: 'Sem responsável' },
     ...users.map((u) => ({ value: u.id, label: u.name })),
   ];
+  const qualificationOptions: FilterOption[] = [
+    { value: 'all', label: 'Todos os atendimentos' },
+    { value: 'none', label: 'Sem resumo registrado' },
+    ...LEAD_QUALIFICATION_STATUSES.map((status, index) => ({
+      value: status,
+      label: LEAD_QUALIFICATION_LABELS[status],
+      dividerBefore: index === 0,
+    })),
+  ];
 
   // Chips dos filtros ativos (faixa removível abaixo da linha de dropdowns).
-  const activeChips: { key: 'interesse' | 'fonte' | 'responsavel'; label: string }[] = [];
+  const activeChips: { key: 'interesse' | 'fonte' | 'responsavel' | 'qualificacao'; label: string }[] = [];
   if (interestFilter !== 'all') {
     activeChips.push({
       key: 'interesse',
@@ -227,6 +241,17 @@ export function BoardFilterBar({
           : (users.find((u) => u.id === assignedFilter)?.name ?? 'Responsável'),
     });
   }
+  if (qualificationFilter !== 'all') {
+    activeChips.push({
+      key: 'qualificacao',
+      label:
+        qualificationFilter === 'none'
+          ? 'Sem resumo registrado'
+          : (LEAD_QUALIFICATION_LABELS[
+              qualificationFilter as keyof typeof LEAD_QUALIFICATION_LABELS
+            ] ?? 'Atendimento'),
+    });
+  }
 
   return (
     <div className="rounded-lg border border-brand-100 bg-white p-3">
@@ -250,6 +275,13 @@ export function BoardFilterBar({
           options={assigneeOptions}
           active={assignedFilter}
           onSelect={(v) => setParam('responsavel', v)}
+          disabled={isPending}
+        />
+        <FilterDropdown
+          label="Atendimento"
+          options={qualificationOptions}
+          active={qualificationFilter}
+          onSelect={(v) => setParam('qualificacao', v)}
           disabled={isPending}
         />
         <div className="relative min-w-[12rem] flex-1">

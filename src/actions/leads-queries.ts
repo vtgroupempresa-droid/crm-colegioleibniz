@@ -518,11 +518,15 @@ export type AssignedFilter = string;
  */
 export type InterestFilter = string;
 
+/** 'all' não filtra; 'none' mostra leads ainda sem resumo de atendimento. */
+export type QualificationFilter = string;
+
 export interface BoardFilterOpts {
   isDemo?: boolean;
   sourceFilter?: SourceFilter;
   assignedFilter?: AssignedFilter;
   interestFilter?: InterestFilter;
+  qualificationFilter?: QualificationFilter;
 }
 
 /**
@@ -548,6 +552,7 @@ function applyBoardFilters<T>(query: T, opts: BoardFilterOpts): T {
   const sourceFilter = opts.sourceFilter ?? 'all';
   const assignedFilter = opts.assignedFilter ?? 'all';
   const interestFilter = opts.interestFilter ?? 'all';
+  const qualificationFilter = opts.qualificationFilter ?? 'all';
 
   let q = query as LeadQueryFilters;
   if (sourceFilter === 'pagas') q = q.in('source', [...PAID_LEAD_SOURCES]);
@@ -558,6 +563,8 @@ function applyBoardFilters<T>(query: T, opts: BoardFilterOpts): T {
   else if (assignedFilter !== 'all') q = q.eq('assigned_to', assignedFilter);
   if (interestFilter === 'none') q = q.is('interest_level', null);
   else if (interestFilter !== 'all') q = q.eq('interest_level', interestFilter);
+  if (qualificationFilter === 'none') q = q.is('qualification_status', null);
+  else if (qualificationFilter !== 'all') q = q.eq('qualification_status', qualificationFilter);
   return q as T;
 }
 
@@ -1041,4 +1048,3 @@ export async function getPipelineTabCounts(
   );
   return Object.fromEntries(pairs);
 }
-

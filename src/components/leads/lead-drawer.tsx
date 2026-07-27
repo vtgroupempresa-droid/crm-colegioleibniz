@@ -22,6 +22,7 @@ import { LeadAppointmentsTab } from './lead-appointments-tab';
 import { LeadConversationsTab } from './lead-conversations-tab';
 import { LeadTasksTab } from './lead-tasks-tab';
 import { LeadNotesTab } from './lead-notes-tab';
+import { LeadQualificationPanel } from './lead-qualification-panel';
 import { LeadDrawerSkeleton } from './lead-drawer-skeleton';
 
 interface LeadPayload {
@@ -314,6 +315,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
                 )}
             </div>
           </div>
+          <LeadQualificationPanel lead={payload.lead} onMutated={reload} />
           <Tabs items={tabs} />
         </div>
       )}

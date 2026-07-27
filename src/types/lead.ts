@@ -27,6 +27,59 @@ export const INTEREST_LEVEL_LABELS: Record<InterestLevel, string> = {
   alto: 'Alto',
 };
 
+/** Situação atual da conversa comercial, atualizada pelo drawer do lead. */
+export const LEAD_QUALIFICATION_STATUSES = [
+  'muito_interessado',
+  'comparando_opcoes',
+  'quer_agendar_visita',
+  'duvida_valor_bolsa',
+  'consultar_familia',
+  'aguardando_retorno',
+  'sem_resposta',
+  'sem_interesse',
+  'outro',
+] as const;
+
+export type LeadQualificationStatus = (typeof LEAD_QUALIFICATION_STATUSES)[number];
+
+export const LEAD_QUALIFICATION_LABELS: Record<LeadQualificationStatus, string> = {
+  muito_interessado: 'Gostou bastante',
+  comparando_opcoes: 'Está comparando outras opções',
+  quer_agendar_visita: 'Quer agendar visita',
+  duvida_valor_bolsa: 'Tem dúvida sobre valor ou bolsa',
+  consultar_familia: 'Precisa conversar com a família',
+  aguardando_retorno: 'Aguardando retorno',
+  sem_resposta: 'Sem resposta',
+  sem_interesse: 'Não gostou ou sem interesse',
+  outro: 'Outro',
+};
+
+export const LEAD_QUALIFICATION_NEXT_ACTIONS = [
+  'retornar_contato',
+  'enviar_proposta',
+  'agendar_visita',
+  'aguardar',
+] as const;
+
+export type LeadQualificationNextAction = (typeof LEAD_QUALIFICATION_NEXT_ACTIONS)[number];
+
+export const LEAD_QUALIFICATION_NEXT_ACTION_LABELS: Record<LeadQualificationNextAction, string> = {
+  retornar_contato: 'Retornar contato',
+  enviar_proposta: 'Enviar proposta',
+  agendar_visita: 'Agendar visita',
+  aguardar: 'Aguardar',
+};
+
+export function isLeadQualificationStatus(value: string | null): value is LeadQualificationStatus {
+  return !!value && (LEAD_QUALIFICATION_STATUSES as readonly string[]).includes(value);
+}
+
+export function isLeadQualificationNextAction(
+  value: string | null,
+): value is LeadQualificationNextAction {
+  return !!value && (LEAD_QUALIFICATION_NEXT_ACTIONS as readonly string[]).includes(value);
+}
+
 export const EDUCATION_LEVELS: readonly EducationLevel[] = [
   'infantil',
   'fundamental_1',

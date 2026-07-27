@@ -11,7 +11,12 @@ import { MAX_ATTEMPTS, slaStatusFor, type SlaStatus } from '@/lib/sla/rules';
 import { TEMPERATURE_LABELS, leadTemperature, type LeadTemperature } from '@/lib/leads/temperature';
 import { labelForField } from '@/lib/leads/validators';
 import { appointmentBadge } from './kanban-card';
-import type { Lead, LEAD_SOURCES } from '@/types/lead';
+import {
+  isLeadQualificationStatus,
+  LEAD_QUALIFICATION_LABELS,
+  type Lead,
+  type LEAD_SOURCES,
+} from '@/types/lead';
 import type { PipelineKind } from '@/types/pipeline';
 
 const SOURCE_LABELS: Partial<Record<(typeof LEAD_SOURCES)[number], string>> = {
@@ -149,6 +154,9 @@ export function KanbanCardCompact({
       : null;
 
   const sourceLabel = lead.source ? (SOURCE_LABELS[lead.source] ?? lead.source) : null;
+  const qualificationStatus = isLeadQualificationStatus(lead.qualification_status)
+    ? lead.qualification_status
+    : null;
   const metaFirst = nextAppointmentAt
     ? `Reunião ${new Date(nextAppointmentAt).toLocaleString('pt-BR', {
         day: '2-digit',
@@ -253,6 +261,7 @@ export function KanbanCardCompact({
         >
           {metaFirst} · {reentered ? 'voltou' : 'na etapa'} {formatRelative(stageEnteredAt)}
           {temp && <span className={TEMPERATURE_TEXT[temp]}> · {TEMPERATURE_LABELS[temp]}</span>}
+          {qualificationStatus && <span className="text-sky-700"> · {LEAD_QUALIFICATION_LABELS[qualificationStatus]}</span>}
           {lead.is_no_show && <span className="font-semibold text-red-600"> · NO-SHOW</span>}
           {aptBadge && <span className={APT_BADGE_TEXT[aptBadge.tone]}> · {aptBadge.label}</span>}
         </p>

@@ -10,7 +10,7 @@ import { OportunidadesTabs } from '@/components/kanban/oportunidades-tabs';
 import { PipelineGauges } from '@/components/kanban/pipeline-gauges';
 import { PipelinePage } from '@/components/kanban/pipeline-page';
 import { getSession } from '@/lib/auth/session';
-import { INTEREST_LEVELS, parseSourceFilter } from '@/types/lead';
+import { INTEREST_LEVELS, LEAD_QUALIFICATION_STATUSES, parseSourceFilter } from '@/types/lead';
 import { isPipelineKind, pipelinesForRole, type PipelineKind } from '@/types/pipeline';
 import type { BoardSort } from '@/actions/leads-queries';
 
@@ -30,6 +30,7 @@ export default async function OportunidadesPage(
       interesse?: string;
       fonte?: string;
       responsavel?: string;
+      qualificacao?: string;
       sort?: string;
     }>;
   }
@@ -67,10 +68,18 @@ export default async function OportunidadesPage(
       ? (requestedAssignee as string)
       : 'all';
 
+  const requestedQualification = searchParams.qualificacao;
+  const qualificationFilter =
+    requestedQualification === 'none' ||
+    (requestedQualification &&
+      (LEAD_QUALIFICATION_STATUSES as readonly string[]).includes(requestedQualification))
+      ? (requestedQualification as string)
+      : 'all';
+
   // Ordenação das colunas (?sort=score → interesse) — padrão 'data'.
   const sort: BoardSort = searchParams.sort === 'score' ? 'score' : 'data';
 
-  const filterOpts = { interestFilter, sourceFilter, assignedFilter };
+  const filterOpts = { interestFilter, sourceFilter, assignedFilter, qualificationFilter };
   const [stats, tabCounts] = await Promise.all([
     getPipelineBoardStats(active, filterOpts),
     getPipelineTabCounts(filterOpts),
@@ -97,6 +106,7 @@ export default async function OportunidadesPage(
           interestFilter={interestFilter}
           sourceFilter={sourceFilter}
           assignedFilter={assignedFilter}
+          qualificationFilter={qualificationFilter}
         />
         <OportunidadesTabs pipelines={allowed} active={active} counts={tabCounts} />
         {/* Board com altura ~viewport: ao rolar a página pra baixo, gauges e filtros
@@ -104,11 +114,12 @@ export default async function OportunidadesPage(
         <div className="h-[calc(100vh-5rem)] min-h-[26rem]">
           {/* key força o board a remontar ao trocar de pipeline/produto/fonte/ordenação */}
           <PipelinePage
-            key={`${active}:${interestFilter}:${sourceFilter}:${assignedFilter}:${sort}`}
+            key={`${active}:${interestFilter}:${sourceFilter}:${assignedFilter}:${qualificationFilter}:${sort}`}
             pipeline={active}
             interestFilter={interestFilter}
             sourceFilter={sourceFilter}
             assignedFilter={assignedFilter}
+            qualificationFilter={qualificationFilter}
             sort={sort}
           />
         </div>

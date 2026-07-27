@@ -8,6 +8,7 @@ import type {
   BoardSort,
   KanbanLeadRow,
   InterestFilter,
+  QualificationFilter,
 } from '@/actions/leads-queries';
 import { cn } from '@/lib/utils/cn';
 import { useBoardSearchTerm } from './board-search-context';
@@ -35,6 +36,7 @@ interface BoardToolbarProps {
   interestFilter: InterestFilter;
   sourceFilter: SourceFilter;
   assignedFilter: AssignedFilter;
+  qualificationFilter: QualificationFilter;
   isDemo: boolean;
   /** Densidade dos cards (Compacto | Confortável), persistida em localStorage. */
   density: BoardDensity;
@@ -61,6 +63,7 @@ export function BoardToolbar({
   interestFilter,
   sourceFilter,
   assignedFilter,
+  qualificationFilter,
   isDemo,
   density,
   onDensityChange,
@@ -103,6 +106,7 @@ export function BoardToolbar({
           interestFilter,
           sourceFilter,
           assignedFilter,
+          qualificationFilter,
           isDemo,
         });
         onSearch({ term: t, results: rows, searching: false });
@@ -110,7 +114,7 @@ export function BoardToolbar({
     }, 300);
     return () => clearTimeout(handle);
     // onSearch é um setState estável; demais deps reexecutam a busca ao mudar.
-  }, [term, pipeline, interestFilter, sourceFilter, assignedFilter, isDemo, onSearch]);
+  }, [term, pipeline, interestFilter, sourceFilter, assignedFilter, qualificationFilter, isDemo, onSearch]);
 
   return (
     <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
