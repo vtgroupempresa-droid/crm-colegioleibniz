@@ -8,6 +8,7 @@ import {
   processLeadgen,
   type LeadgenChangeValue,
 } from '@/lib/meta/inbound';
+import { getOrCreateMetaSource } from '@/lib/meta/source';
 
 /**
  * Webhook unificado da Meta: WhatsApp Cloud API + Instagram Messaging
@@ -70,6 +71,8 @@ export async function POST(req: Request) {
 
   const admin = metaAdmin();
   const object = payload.object ?? '';
+  const startedAt = Date.now();
+  let processError: string | null = null;
 
   if (webhookDebugEnabled()) {
     // eslint-disable-next-line no-console
@@ -120,9 +123,29 @@ export async function POST(req: Request) {
         }
       }
     }
+    processError = null;
   } catch (err) {
     // Loga, mas devolve 200 para a Meta não reenfileirar indefinidamente.
+    processError = err instanceof Error ? err.message : String(err);
     console.error('[meta/webhook] erro ao processar evento:', err);
+  }
+
+  // Trilha de auditoria de TODO evento recebido, inclusive os que falharam.
+  // Sem isto, uma falha de processamento é invisível: a Meta recebe 200 e a
+  // mensagem some sem deixar rastro — foi exatamente assim que a constraint
+  // errada de `conversations` derrubou o chat inteiro sem ninguém perceber.
+  // Nunca deixa o log quebrar a resposta à Meta.
+  try {
+    const sourceId = await getOrCreateMetaSource(admin);
+    await admin.from('webhook_logs').insert({
+      source_id: sourceId,
+      status: processError ? 'error' : 'success',
+      error_message: processError,
+      processing_time_ms: Date.now() - startedAt,
+      payload: { object, entry: payload.entry ?? [] } as never,
+    });
+  } catch (logErr) {
+    console.error('[meta/webhook] falha ao gravar webhook_log:', logErr);
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });
