@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseCampaignName, campaignAdCreative } from '@/lib/webhooks/campaign-parser';
 import { mergeTags } from '@/lib/webhooks/tag-rules';
+import { normalizePhone } from '@/lib/leads/identity';
 import { getOrCreateMetaSource } from './source';
 import {
   EDUCATION_LEVELS,
@@ -369,6 +370,8 @@ async function persistLead(
   const insert: LeadInsert = {
     name,
     phone,
+    // Mesma razão do ingest: o match por telefone lê phone_normalized.
+    phone_normalized: normalizePhone(phone),
     email,
     child_name: values.child_name ?? null,
     education_level: educationLevel,

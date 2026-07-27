@@ -20,7 +20,7 @@ import {
 import type { Database, Json } from '@/types/database';
 import type { PipelineKind } from '@/types/pipeline';
 import type { MappableLeadField } from '@/types/webhooks';
-import { findLeadByIdentity, type LeadIdentity } from '@/lib/leads/identity';
+import { findLeadByIdentity, normalizePhone, type LeadIdentity } from '@/lib/leads/identity';
 import { checkNewLeadNameDuplicates } from '@/lib/leads/duplicate-detection';
 import { reactivateLeadOnInbound } from '@/lib/leads/reactivation';
 import { mergeTags } from './tag-rules';
@@ -213,7 +213,7 @@ export async function ingestLead(admin: DbClient, input: IngestInput): Promise<I
       ...(addedInstagram ? { instagram_user_id: igUserId } : {}),
       ...(addedFacebook ? { facebook_user_id: fbUserId } : {}),
       ...(values.instagram && !existing.instagram ? { instagram: values.instagram } : {}),
-      ...(phone && !existing.phone ? { phone } : {}),
+      ...(phone && !existing.phone ? { phone, phone_normalized: normalizePhone(phone) } : {}),
       ...(email && !existing.email ? { email } : {}),
       ...(values.city ? { city: values.city } : {}),
       ...(values.state ? { state: values.state } : {}),
@@ -303,6 +303,11 @@ export async function ingestLead(admin: DbClient, input: IngestInput): Promise<I
   const insert: LeadInsert = {
     name,
     phone,
+    // A coluna crua não casa nada: findLeadByIdentity procura o lead por
+    // phone_normalized. Sem preencher aqui, todo lead nascido de webhook
+    // (WhatsApp, Instagram, Lead Ads) fica invisível para o match por telefone
+    // e a mesma pessoa vira um lead novo a cada canal.
+    phone_normalized: normalizePhone(phone),
     email,
     instagram: values.instagram ?? null,
     instagram_user_id: igUserId,
