@@ -1,0 +1,196 @@
+'use client';
+
+import { useEffect, useState, useTransition } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { searchKanban } from '@/actions/kanban';
+import type {
+  AssignedFilter,
+  BoardSort,
+  KanbanLeadRow,
+  InterestFilter,
+} from '@/actions/leads-queries';
+import { cn } from '@/lib/utils/cn';
+import { useBoardSearchTerm } from './board-search-context';
+import type { BoardDensity } from './use-board-density';
+import type { SourceFilter } from '@/types/lead';
+import type { PipelineKind } from '@/types/pipeline';
+
+/** Estado da busca reportado ao board para filtrar os cards em tempo real. */
+export interface BoardSearchState {
+  /** Termo atual (já com trim). */
+  term: string;
+  /** Resultados da busca server-side; null quando não há busca ativa. */
+  results: KanbanLeadRow[] | null;
+  /** Busca em andamento (debounce/await). */
+  searching: boolean;
+}
+
+interface BoardToolbarProps {
+  pipeline: PipelineKind;
+  /** Título do pipeline ativo (sub-header em linha única). */
+  title: string;
+  /** Total real de leads ativos no board (soma das colunas, com filtros). */
+  totalCount: number;
+  sort: BoardSort;
+  interestFilter: InterestFilter;
+  sourceFilter: SourceFilter;
+  assignedFilter: AssignedFilter;
+  isDemo: boolean;
+  /** Densidade dos cards (Compacto | Confortável), persistida em localStorage. */
+  density: BoardDensity;
+  onDensityChange: (next: BoardDensity) => void;
+  /** Reporta o estado da busca — o board filtra os cards das colunas em tempo real. */
+  onSearch: (state: BoardSearchState) => void;
+  /** Abre o modal de criação de lead direto no board. */
+  onNewLead: () => void;
+}
+
+/**
+ * Sub-header do board em linha única: título do pipeline + contador, toggle de
+ * ordenação (Data/Score), densidade (Compacto/Confortável), busca e atalho
+ * "Novo lead". A busca é server-side com debounce (300ms) e filtra os cards das
+ * colunas EM TEMPO REAL (não um dropdown à parte), combinando com os filtros de
+ * produto/fonte ativos — acha leads em qualquer coluna, inclusive os que ainda
+ * não foram carregados pelas páginas das colunas.
+ */
+export function BoardToolbar({
+  pipeline,
+  title,
+  totalCount,
+  sort,
+  interestFilter,
+  sourceFilter,
+  assignedFilter,
+  isDemo,
+  density,
+  onDensityChange,
+  onSearch,
+  onNewLead,
+}: BoardToolbarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Termo compartilhado com a busca da barra de filtros (mesma busca do board);
+  // fora do provider (board usado avulso) cai num estado local próprio.
+  const shared = useBoardSearchTerm();
+  const local = useState('');
+  const [term, setTerm] = shared ?? local;
+  const [, startTransition] = useTransition();
+
+  function setSort(next: BoardSort) {
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    if (next === 'data') params.delete('sort');
+    else params.set('sort', next);
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  }
+
+  // Busca com debounce (300ms). Reporta o estado ao board: <2 chars limpa o
+  // filtro; ≥2 chars marca "buscando" na hora e, após o debounce, entrega os
+  // resultados (já combinados com produto/fonte pela searchKanban).
+  useEffect(() => {
+    const t = term.trim();
+    if (t.length < 2) {
+      onSearch({ term: t, results: null, searching: false });
+      return;
+    }
+    onSearch({ term: t, results: null, searching: true });
+    const handle = setTimeout(() => {
+      startTransition(async () => {
+        const rows = await searchKanban({
+          pipeline,
+          term: t,
+          interestFilter,
+          sourceFilter,
+          assignedFilter,
+          isDemo,
+        });
+        onSearch({ term: t, results: rows, searching: false });
+      });
+    }, 300);
+    return () => clearTimeout(handle);
+    // onSearch é um setState estável; demais deps reexecutam a busca ao mudar.
+  }, [term, pipeline, interestFilter, sourceFilter, assignedFilter, isDemo, onSearch]);
+
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="mr-1 min-w-0">
+        <h2 className="truncate text-lg font-semibold leading-tight text-brand-700">{title}</h2>
+        <p className="text-xs text-brand-400">
+          {totalCount.toLocaleString('pt-BR')} {totalCount === 1 ? 'lead ativo' : 'leads ativos'}
+        </p>
+      </div>
+      <div
+        className="flex items-center gap-1 rounded-md border border-brand-200 bg-white p-0.5 text-xs"
+        title="A coluna Novo Lead é sempre ordenada por data"
+      >
+        <span className="px-1.5 text-brand-400">Ordenar:</span>
+        <button
+          type="button"
+          onClick={() => setSort('data')}
+          className={cn(
+            'rounded px-2 py-1 font-medium transition-colors',
+            sort === 'data' ? 'bg-brand-600 text-canvas' : 'text-brand-600 hover:bg-brand-50',
+          )}
+        >
+          Data
+        </button>
+        <button
+          type="button"
+          onClick={() => setSort('score')}
+          className={cn(
+            'rounded px-2 py-1 font-medium transition-colors',
+            sort === 'score' ? 'bg-brand-600 text-canvas' : 'text-brand-600 hover:bg-brand-50',
+          )}
+        >
+          Score
+        </button>
+      </div>
+
+      <div className="flex items-center gap-1 rounded-md border border-brand-200 bg-white p-0.5 text-xs">
+        <button
+          type="button"
+          onClick={() => onDensityChange('compact')}
+          title="Cards em linha única — mais leads por scroll"
+          className={cn(
+            'rounded px-2 py-1 font-medium transition-colors',
+            density === 'compact' ? 'bg-brand-600 text-canvas' : 'text-brand-600 hover:bg-brand-50',
+          )}
+        >
+          Compacto
+        </button>
+        <button
+          type="button"
+          onClick={() => onDensityChange('comfortable')}
+          title="Cards completos, com botões e detalhes"
+          className={cn(
+            'rounded px-2 py-1 font-medium transition-colors',
+            density === 'comfortable'
+              ? 'bg-brand-600 text-canvas'
+              : 'text-brand-600 hover:bg-brand-50',
+          )}
+        >
+          Confortável
+        </button>
+      </div>
+
+      <div className="ml-auto flex items-center gap-2">
+        <input
+          type="search"
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          placeholder="Buscar lead..."
+          title="Busca por nome, telefone, e-mail ou CRM"
+          className="w-40 rounded-md border border-brand-200 bg-white px-3 py-1.5 text-sm text-brand-700 placeholder:text-brand-300 focus:border-brand-400 focus:outline-none sm:w-56"
+        />
+        <button
+          type="button"
+          onClick={onNewLead}
+          className="shrink-0 rounded-md bg-brand-700 px-3 py-1.5 text-sm font-medium text-canvas hover:bg-brand-800"
+        >
+          + Novo lead
+        </button>
+      </div>
+    </div>
+  );
+}
