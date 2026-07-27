@@ -14,7 +14,7 @@ import type { FunnelStage, TimeGranularity } from '@/types/dashboard';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 function parseGranularity(raw: string | string[] | undefined): TimeGranularity {
@@ -26,7 +26,8 @@ function parseGranularity(raw: string | string[] | undefined): TimeGranularity {
  * Topo de Funil — geração e qualificação: leads por canal,
  * taxa de conexão, funil de qualificação, no-show, SLA de 1º contato e atividades.
  */
-export default async function TopoFunilPage({ searchParams }: PageProps) {
+export default async function TopoFunilPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const isDemo = getDemoMode();
   const { kind, from, to } = parsePeriodParams(searchParams);
   const period = resolvePeriod(kind, { from, to });

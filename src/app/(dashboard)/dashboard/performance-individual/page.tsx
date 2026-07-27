@@ -9,7 +9,7 @@ import { getDemoMode } from '@/lib/demo/context';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 /**
@@ -17,7 +17,8 @@ interface PageProps {
  * volume), metas individuais e matriz de dispersão atividade × conversão.
  * Metas são cadastradas no /admin, seção "Metas individuais".
  */
-export default async function PerformanceIndividualPage({ searchParams }: PageProps) {
+export default async function PerformanceIndividualPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const isDemo = getDemoMode();
   const { kind, from, to } = parsePeriodParams(searchParams);
   const period = resolvePeriod(kind, { from, to });

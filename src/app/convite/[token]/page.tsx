@@ -6,10 +6,11 @@ import { getInvitationByToken } from '@/actions/invitations';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }
 
-export default async function ConvitePage({ params }: PageProps) {
+export default async function ConvitePage(props: PageProps) {
+  const params = await props.params;
   const invite = await getInvitationByToken(params.token);
 
   return (

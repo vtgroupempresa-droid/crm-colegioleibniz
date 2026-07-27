@@ -6,7 +6,8 @@ import { WebhookLogsView } from '@/components/integrations/webhook-logs-view';
 
 export const metadata = { title: 'Logs · Webhook' };
 
-export default async function WebhookLogsPage({ params }: { params: { slug: string } }) {
+export default async function WebhookLogsPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const session = await getSession();
   if (!session) redirect('/login');
   if (!isAdmin(session.role)) redirect('/');

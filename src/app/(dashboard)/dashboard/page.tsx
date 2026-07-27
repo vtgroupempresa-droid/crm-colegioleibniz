@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 
 interface DashboardPageProps {
   // Next valida que `searchParams` aceita o índice padrão — manter a assinatura ampla.
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 /**
@@ -26,7 +26,8 @@ interface DashboardPageProps {
  * Destaques pedidos na reunião com o colégio: matrículas fechadas e o
  * cruzamento "interesse alto × não fechou matrícula".
  */
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+export default async function DashboardPage(props: DashboardPageProps) {
+  const searchParams = await props.searchParams;
   const isDemo = getDemoMode();
   const { kind, from, to } = parsePeriodParams(searchParams);
   const period = resolvePeriod(kind, { from, to });

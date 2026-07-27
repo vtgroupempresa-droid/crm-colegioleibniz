@@ -47,12 +47,13 @@ interface MetaPayload {
 export async function POST(req: Request) {
   const raw = await req.text();
 
-  // Assinatura — só exige quando há algum app secret configurado. Todos os
-  // eventos (page/instagram via página) são assinados com o META_APP_SECRET;
-  // object=whatsapp_business_account pode vir assinado pelo app que hospeda a
-  // WABA (WHATSAPP_APP_SECRET — cai no META_APP_SECRET quando é o mesmo app).
-  // Aceita qualquer um.
-  const secrets = [metaEnv.appSecret, metaEnv.whatsappAppSecret];
+  // Assinatura — só exige quando há algum app secret configurado.
+  //
+  // Cada produto da Meta assina com o SEU app secret: Facebook (object=page,
+  // leadgen), Instagram (object=instagram, DMs) e WhatsApp (WABA). Como o
+  // webhook é unificado, aceitamos qualquer um dos três — sem isso, eventos
+  // legítimos de um produto caem como assinatura inválida.
+  const secrets = [metaEnv.appSecret, metaEnv.instagramAppSecret, metaEnv.whatsappAppSecret];
   if (secrets.some((s) => isConfigured(s))) {
     const signature = req.headers.get('x-hub-signature-256');
     if (!verifyMetaSignatureAny(raw, signature, secrets)) {

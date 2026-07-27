@@ -83,10 +83,8 @@ function formAnswersFromPayload(payload: unknown): MetaFormAnswer[] | undefined 
   return out.length > 0 ? out : undefined;
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: { slug: string } },
-) {
+export async function POST(req: Request, props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const startedAt = Date.now();
   const admin = createAdminClient();
 

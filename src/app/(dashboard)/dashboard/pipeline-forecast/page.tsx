@@ -11,7 +11,7 @@ import { getDemoMode } from '@/lib/demo/context';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 /**
@@ -22,7 +22,8 @@ interface PageProps {
  * selecionado); o filtro de período existe pela navegação consistente entre as
  * seções do dashboard.
  */
-export default async function PipelineForecastPage({ searchParams }: PageProps) {
+export default async function PipelineForecastPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const isDemo = getDemoMode();
   const { kind, from, to } = parsePeriodParams(searchParams);
   const period = resolvePeriod(kind, { from, to });

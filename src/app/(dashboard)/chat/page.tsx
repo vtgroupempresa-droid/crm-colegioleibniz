@@ -10,11 +10,12 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Chat · CRM Colégio Leibniz' };
 
-export default async function ChatPage({
-  searchParams,
-}: {
-  searchParams: { c?: string };
-}) {
+export default async function ChatPage(
+  props: {
+    searchParams: Promise<{ c?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getSession();
   if (!session) redirect('/login');
 

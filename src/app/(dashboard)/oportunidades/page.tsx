@@ -23,17 +23,18 @@ export const dynamic = 'force-dynamic';
  * Dashboard de gauges contextual ao pipeline ativo + filtros de
  * Interesse/Fonte/Responsável em dropdowns compactos.
  */
-export default async function OportunidadesPage({
-  searchParams,
-}: {
-  searchParams: {
-    pipeline?: string;
-    interesse?: string;
-    fonte?: string;
-    responsavel?: string;
-    sort?: string;
-  };
-}) {
+export default async function OportunidadesPage(
+  props: {
+    searchParams: Promise<{
+      pipeline?: string;
+      interesse?: string;
+      fonte?: string;
+      responsavel?: string;
+      sort?: string;
+    }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getSession();
   if (!session) redirect('/login');
 

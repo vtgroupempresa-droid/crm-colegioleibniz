@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOutAction } from '@/app/(auth)/login/actions';
@@ -26,7 +26,10 @@ import { USER_ROLE_LABELS } from '@/types/user';
 import { navItemsFor, type NavIconKey } from './sidebar-nav';
 
 /** Ícone SVG de cada item do menu (chave definida em sidebar-nav.ts). */
-const NAV_ICONS: Record<NavIconKey, (props: { size?: number; className?: string }) => JSX.Element> =
+const NAV_ICONS: Record<
+  NavIconKey,
+  (props: { size?: number; className?: string }) => ReactElement
+> =
   {
     leads: UsersIcon,
     oportunidades: KanbanIcon,
