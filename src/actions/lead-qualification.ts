@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import {
   LEAD_QUALIFICATION_NEXT_ACTIONS,
+  LEAD_QUALIFICATION_NEXT_ACTION_LABELS,
   LEAD_QUALIFICATION_STATUSES,
   type LeadQualificationNextAction,
   type LeadQualificationStatus,
@@ -73,6 +74,48 @@ export async function saveLeadQualification(
   });
 
   if (error) return { ok: false, error: error.message };
+
+  // O "próximo combinado" deixa de ser apenas um campo de contexto: vira uma
+  // tarefa real, que aparece na fila operacional do Funil. Há no máximo uma
+  // tarefa desse tipo pendente por lead; salvar novamente apenas a reagenda.
+  const taskTitlePrefix = 'Próximo passo:';
+  const { data: pendingTask } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('lead_id', parsed.data.leadId)
+    .in('status', ['pendente', 'pending'])
+    .ilike('title', `${taskTitlePrefix}%`)
+    .order('due_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (parsed.data.nextAction && parsed.data.nextActionAt) {
+    const title = `${taskTitlePrefix} ${LEAD_QUALIFICATION_NEXT_ACTION_LABELS[parsed.data.nextAction]}`;
+    const values = {
+      title,
+      description: parsed.data.description || null,
+      due_at: parsed.data.nextActionAt,
+      assigned_to: user.id,
+      updated_at: new Date().toISOString(),
+    };
+    const taskError = pendingTask
+      ? (await supabase.from('tasks').update(values).eq('id', pendingTask.id)).error
+      : (
+          await supabase.from('tasks').insert({
+            ...values,
+            lead_id: parsed.data.leadId,
+            created_by: user.id,
+            status: 'pendente',
+          })
+        ).error;
+    if (taskError) return { ok: false, error: taskError.message };
+  } else if (pendingTask) {
+    const { error: cancelError } = await supabase
+      .from('tasks')
+      .update({ status: 'cancelada', updated_at: new Date().toISOString() })
+      .eq('id', pendingTask.id);
+    if (cancelError) return { ok: false, error: cancelError.message };
+  }
 
   revalidatePath('/leads');
   revalidatePath('/oportunidades');

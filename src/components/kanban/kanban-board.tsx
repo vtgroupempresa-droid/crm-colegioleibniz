@@ -32,6 +32,7 @@ import { ContactAttemptModal } from './contact-attempt-modal';
 import { RegisterContactModal } from './register-contact-modal';
 import { DealModal } from './deal-modal';
 import { AppointmentEditModal } from './appointment-edit-modal';
+import { ActionQueue } from './action-queue';
 import { BoardToolbar, type BoardSearchState } from './board-toolbar';
 import { MoveLeadsModal } from './move-leads-modal';
 import { MoveLeadStageModal } from './move-lead-stage-modal';
@@ -629,6 +630,7 @@ export function KanbanBoard({
 
   return (
     <>
+      <ActionQueue onOpenLead={setDrawerLeadId} />
       <BoardToolbar
         pipeline={pipeline}
         title={boardTitle}

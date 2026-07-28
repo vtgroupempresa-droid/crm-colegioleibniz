@@ -32,6 +32,13 @@ export interface TaskItem {
   completedAt: string | null;
 }
 
+/** Item enxuto da fila operacional do Funil. */
+export interface ActionQueueItem extends TaskItem {
+  leadName: string | null;
+  childName: string | null;
+  stage: string | null;
+}
+
 const createTaskSchema = z.object({
   leadId: z.string().uuid().nullable().optional(),
   title: z.string().min(1).max(200),
@@ -75,7 +82,10 @@ function mapRow(row: {
     description: row.description,
     dueAt: row.due_at,
     durationMinutes: row.duration_minutes,
-    status: (row.status as TaskStatus) ?? 'pendente',
+    // A primeira versão do schema usava o default em inglês ('pending'),
+    // enquanto a UI sempre trabalhou em português. Normalizar na borda mantém
+    // tarefas antigas e automações existentes visíveis na fila.
+    status: row.status === 'pending' ? 'pendente' : ((row.status as TaskStatus) ?? 'pendente'),
     assignedTo: row.assigned_to,
     googleEventId: row.google_event_id,
     completedAt: row.completed_at,
@@ -131,6 +141,7 @@ export async function createTask(rawInput: unknown): Promise<ActionResult<TaskIt
   }
 
   revalidatePath('/calendario');
+  revalidatePath('/oportunidades');
   return { ok: true, data: mapRow(task) };
 }
 
@@ -190,6 +201,7 @@ export async function updateTask(taskId: string, rawInput: unknown): Promise<Act
   }
 
   revalidatePath('/calendario');
+  revalidatePath('/oportunidades');
   return { ok: true, data: undefined };
 }
 
@@ -225,6 +237,7 @@ async function closeTask(taskId: string, status: 'concluida' | 'cancelada'): Pro
   }
 
   revalidatePath('/calendario');
+  revalidatePath('/oportunidades');
   return { ok: true, data: undefined };
 }
 
@@ -247,4 +260,43 @@ export async function getTasksForLead(leadId: string): Promise<TaskItem[]> {
     .eq('lead_id', leadId)
     .order('due_at', { ascending: true });
   return (data ?? []).map(mapRow);
+}
+
+/**
+ * Próximas ações do usuário logado, ordenadas para execução: atrasadas antes,
+ * depois hoje e então as próximas 48 horas. É a fonte da faixa "Minha fila"
+ * do Funil e inclui tarefas manuais e geradas por automações.
+ */
+export async function getMyActionQueue(): Promise<ActionQueueItem[]> {
+  const session = await getSession();
+  if (!session) return [];
+
+  const until = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from('tasks')
+    .select(`${TASK_COLUMNS}, leads (name, child_name, stage)`)
+    .eq('assigned_to', session.userId)
+    .in('status', ['pendente', 'pending'])
+    .lte('due_at', until)
+    .order('due_at', { ascending: true })
+    .limit(24);
+
+  return (data ?? []).map((row) => {
+    const task = mapRow(row);
+    const lead = row.leads as { name: string; child_name: string | null; stage: string } | null;
+    return {
+      ...task,
+      leadName: lead?.name ?? null,
+      childName: lead?.child_name ?? null,
+      stage: lead?.stage ?? null,
+    };
+  });
+}
+
+/** Adia uma ação sem cancelá-la; evita que o atendente "apague" o follow-up. */
+export async function snoozeTask(taskId: string, untilIso: string): Promise<ActionResult> {
+  const parsed = z.string().datetime({ offset: true }).safeParse(untilIso);
+  if (!parsed.success) return { ok: false, error: 'Informe uma nova data e hora válida.' };
+  return updateTask(taskId, { dueAt: parsed.data });
 }
