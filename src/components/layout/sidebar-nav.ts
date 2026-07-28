@@ -28,16 +28,16 @@ export interface NavItem {
  *    integrações e configurações (/admin).
  */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { href: '/leads', label: 'Famílias interessadas', icon: 'leads', roles: ['admin', 'comercial'] },
+  { href: '/leads', label: 'Todos os Leads', icon: 'leads', roles: ['admin', 'comercial'] },
   {
     href: '/oportunidades',
-    label: 'Jornada de matrícula',
+    label: 'Funil',
     icon: 'oportunidades',
     roles: ['admin', 'comercial'],
   },
-  { href: '/calendario', label: 'Agenda de visitas', icon: 'calendario', roles: ['admin', 'comercial'] },
-  { href: '/chat', label: 'Conversas com famílias', icon: 'chat', roles: ['admin', 'comercial'] },
-  { href: '/disparos', label: 'Comunicações', icon: 'disparos', roles: ['admin', 'comercial'] },
+  { href: '/calendario', label: 'Calendário', icon: 'calendario', roles: ['admin', 'comercial'] },
+  { href: '/chat', label: 'Chat', icon: 'chat', roles: ['admin', 'comercial'] },
+  { href: '/disparos', label: 'Disparos', icon: 'disparos', roles: ['admin', 'comercial'] },
   { href: '/dashboard', label: 'Dashboard', icon: 'dashboard', roles: ['admin'] },
   { href: '/relatorios', label: 'Relatórios', icon: 'relatorios', roles: ['admin'] },
   { href: '/integracoes', label: 'Integrações', icon: 'integracoes', roles: ['admin'] },
