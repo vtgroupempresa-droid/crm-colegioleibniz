@@ -82,7 +82,7 @@ export function LeadCreateModal({ open, onClose }: LeadCreateModalProps) {
         toast.error(result.error);
         return;
       }
-      toast.success(`${result.data.name} criado`);
+      toast.success(`Família de ${result.data.name} cadastrada`);
       setForm(INITIAL);
       onClose();
       router.refresh();
@@ -90,7 +90,12 @@ export function LeadCreateModal({ open, onClose }: LeadCreateModalProps) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Novo lead" maxWidthClassName="max-w-2xl">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Cadastrar família interessada"
+      maxWidthClassName="max-w-2xl"
+    >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
           <Input
@@ -157,7 +162,7 @@ export function LeadCreateModal({ open, onClose }: LeadCreateModalProps) {
               onChange={(e) => set('with_child', e.target.checked)}
               className="focus-ring h-4 w-4 rounded border-brand-200"
             />
-            Entra com o filho
+            A família já informou dados do aluno
           </label>
           <div className="grid grid-cols-2 gap-3">
             <Input

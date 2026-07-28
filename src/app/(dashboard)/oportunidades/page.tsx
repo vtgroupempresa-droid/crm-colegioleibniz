@@ -89,7 +89,10 @@ export default async function OportunidadesPage(
     // Sem h-full: a página rola (gauges e filtros sobem) e o board ocupa ~a tela toda.
     <section className="flex flex-col gap-4">
       <header>
-        <h2 className="text-2xl font-semibold text-brand-700">Funil</h2>
+        <h2 className="text-2xl font-semibold text-brand-700">Jornada de matrícula</h2>
+        <p className="mt-1 text-sm text-brand-500">
+          Acompanhe cada família desde o primeiro contato até a matrícula.
+        </p>
       </header>
       {/* key remonta os gauges ao trocar de aba — a animação do arco reinicia. */}
       <PipelineGauges

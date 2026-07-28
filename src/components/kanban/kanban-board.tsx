@@ -3,6 +3,7 @@
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   closestCorners,
   defaultDropAnimationSideEffects,
@@ -12,6 +13,7 @@ import {
   type DragStartEvent,
   type DropAnimation,
 } from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -32,6 +34,7 @@ import { DealModal } from './deal-modal';
 import { AppointmentEditModal } from './appointment-edit-modal';
 import { BoardToolbar, type BoardSearchState } from './board-toolbar';
 import { MoveLeadsModal } from './move-leads-modal';
+import { MoveLeadStageModal } from './move-lead-stage-modal';
 import { KanbanCard } from './kanban-card';
 import { KanbanCardCompact, SLA_DOT_CLASSES, SLA_DOT_LABELS } from './kanban-card-compact';
 import { KanbanCardOverlay } from './kanban-card-overlay';
@@ -248,15 +251,20 @@ export function KanbanBoard({
 
   // ID do lead em arrasto — driver do DragOverlay.
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null);
-  const activeEntry = useMemo(
-    () => (activeLeadId ? (entries.find((e) => e.lead.id === activeLeadId) ?? null) : null),
-    [entries, activeLeadId],
-  );
+  const activeEntry = useMemo(() => {
+    if (!activeLeadId) return null;
+    const source = search.term.length >= 2 ? (search.results ?? []) : entries;
+    return source.find((entry) => entry.lead.id === activeLeadId) ?? null;
+  }, [activeLeadId, entries, search.results, search.term]);
 
   // Seleção múltipla: arrastar qualquer card selecionado move todos juntos.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Modal "Mover" (selecionados → pipeline/coluna escolhidos, inclusive cross-pipeline).
   const [moveModalOpen, setMoveModalOpen] = useState(false);
+  // Movimento individual por painel: essencial no celular e útil como alternativa
+  // explícita ao drag em qualquer tela.
+  const [moveLead, setMoveLead] = useState<KanbanLeadEntry | null>(null);
+  const [movingLeadIds, setMovingLeadIds] = useState<Set<string>>(new Set());
   const isGroupDragging =
     activeLeadId !== null && selectedIds.has(activeLeadId) && selectedIds.size > 1;
 
@@ -317,7 +325,10 @@ export function KanbanBoard({
     });
   }
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   // Navegação horizontal do board (desktop):
   //  - roda do mouse (vertical) → rola lateralmente;
@@ -465,15 +476,81 @@ export function KanbanBoard({
   }
 
   function performMove(leadId: string, newStage: string, force = false) {
+    if (movingLeadIds.has(leadId)) return;
+
+    const previousEntry =
+      entries.find((entry) => entry.lead.id === leadId) ??
+      search.results?.find((entry) => entry.lead.id === leadId) ??
+      null;
+    if (!previousEntry) {
+      toast.error('Não foi possível localizar esta família no funil. Atualize a tela e tente novamente.');
+      return;
+    }
+
+    const previousStage = previousEntry.lead.stage;
+    const targetStageName = stages.find((stage) => stage.slug === newStage)?.name ?? newStage;
+    const patchStage = (entry: KanbanLeadEntry) =>
+      entry.lead.id === leadId ? { ...entry, lead: { ...entry.lead, stage: newStage } } : entry;
+
+    // O card troca de coluna imediatamente. Se o servidor recusar, o rollback
+    // restaura a etapa anterior e mantém a operação confiável.
+    setEntries((current) => current.map(patchStage));
+    setSearch((current) =>
+      current.results ? { ...current, results: current.results.map(patchStage) } : current,
+    );
+    setMovingLeadIds((current) => new Set(current).add(leadId));
+
     startTransition(async () => {
       const result = await moveLeadStage(leadId, newStage, force);
       if (!result.ok) {
+        const rollback = (entry: KanbanLeadEntry) =>
+          entry.lead.id === leadId
+            ? { ...entry, lead: { ...entry.lead, stage: previousStage } }
+            : entry;
+        setEntries((current) => current.map(rollback));
+        setSearch((current) =>
+          current.results ? { ...current, results: current.results.map(rollback) } : current,
+        );
         toast.error(result.error);
+      } else {
+        toast.success(`Movido para ${targetStageName}`);
+        router.refresh();
+      }
+      setMovingLeadIds((current) => {
+        const next = new Set(current);
+        next.delete(leadId);
+        return next;
+      });
+    });
+  }
+
+  /** Mesmas regras para o arraste e o painel de mudança de etapa. */
+  function requestSingleMove(lead: Lead, targetStageSlug: string) {
+    if (targetStageSlug === lead.stage) return;
+    const targetStage = stages.find((stage) => stage.slug === targetStageSlug);
+    if (!targetStage) return;
+
+    if (targetStage.required_fields.includes(APPOINTMENT_REQUIRED)) {
+      setHandoffLead({ id: lead.id, name: lead.name });
+      return;
+    }
+
+    const { ok, missing } = validateRequiredFields(lead, targetStage.required_fields);
+    if (!ok) {
+      if (missing.includes('lost_reason')) {
+        setLostModal({ id: lead.id, name: lead.name });
         return;
       }
-      toast.success(`Movido para ${newStage}`);
-      router.refresh();
-    });
+      const hardMissing = missing.filter((field) => HARD_BLOCK_FIELDS.has(field));
+      if (hardMissing.length > 0) {
+        setRequiredModal({ lead, targetStage, missing: hardMissing });
+      } else {
+        setSoftBlock({ lead, targetStage, missing });
+      }
+      return;
+    }
+
+    performMove(lead.id, targetStageSlug);
   }
 
   function handleOpenChat(leadId: string) {
@@ -519,7 +596,9 @@ export function KanbanBoard({
     if (overData?.type === 'stage') {
       targetStageSlug = String(over.id);
     } else if (overData?.type === 'lead') {
-      const overLead = entries.find((e) => e.lead.id === String(over.id))?.lead;
+      // Em busca, os cards podem não estar na página inicial de `entries`.
+      // `baseEntries` é a fonte exibida, logo também é a fonte do drop.
+      const overLead = baseEntries.find((e) => e.lead.id === String(over.id))?.lead;
       targetStageSlug = overLead?.stage ?? null;
     }
     if (!targetStageSlug) return;
@@ -543,38 +622,9 @@ export function KanbanBoard({
       return;
     }
 
-    const lead = entries.find((e) => e.lead.id === leadId)?.lead;
+    const lead = baseEntries.find((e) => e.lead.id === leadId)?.lead;
     if (!lead) return;
-    if (targetStageSlug === lead.stage) return;
-
-    // Bloqueio HARD de agendamento: abre o ScheduleHandoffModal e NÃO move o
-    // lead — o próprio modal (createAppointment) faz o handoff para
-    // closers/agendamentos ao salvar. Fechar sem salvar deixa o lead onde está.
-    if (targetStage.required_fields.includes(APPOINTMENT_REQUIRED)) {
-      setHandoffLead({ id: lead.id, name: lead.name });
-      return;
-    }
-
-    const { ok, missing } = validateRequiredFields(lead, targetStage.required_fields);
-    if (!ok) {
-      // Stage de perda (venda_perdida nos closers): exige motivo → abre o
-      // LostReasonModal dedicado (Select do enum, nunca texto livre). É o ÚNICO
-      // caminho de arrasto que dispara motivo de perda; demais stages não pedem.
-      if (missing.includes('lost_reason')) {
-        setLostModal({ id: lead.id, name: lead.name });
-        return;
-      }
-      // Separa campos terminais (hard block) de campos de ICP (soft warning).
-      const hardMissing = missing.filter((m) => HARD_BLOCK_FIELDS.has(m));
-      if (hardMissing.length > 0) {
-        setRequiredModal({ lead, targetStage, missing: hardMissing });
-      } else {
-        setSoftBlock({ lead, targetStage, missing });
-      }
-      return;
-    }
-
-    performMove(leadId, targetStageSlug);
+    requestSingleMove(lead, targetStageSlug);
   }
 
   return (
@@ -722,6 +772,7 @@ export function KanbanBoard({
                         onToggleSelect={toggleSelect}
                         groupDragging={isGroupDragging}
                         onOpen={(id) => setDrawerLeadId(id)}
+                        onMove={() => setMoveLead(entry)}
                         onOpenChat={handleOpenChat}
                         onQuickAttempt={isComercial ? () => setAttemptModal(entry) : undefined}
                         onRegisterContact={
@@ -773,6 +824,7 @@ export function KanbanBoard({
                         onToggleSelect={toggleSelect}
                         groupDragging={isGroupDragging}
                         onOpen={(id) => setDrawerLeadId(id)}
+                        onMove={() => setMoveLead(entry)}
                         onOpenChat={handleOpenChat}
                         onQuickAttempt={isComercial ? () => setAttemptModal(entry) : undefined}
                         onRegisterContact={
@@ -954,6 +1006,21 @@ export function KanbanBoard({
           onConfirm={performMoveToPipeline}
         />
       )}
+
+      <MoveLeadStageModal
+        open={moveLead !== null}
+        onClose={() => setMoveLead(null)}
+        leadName={moveLead?.lead.name ?? ''}
+        currentStage={moveLead?.lead.stage ?? ''}
+        stages={stages}
+        isPending={isPending}
+        onConfirm={(targetStage) => {
+          if (!moveLead) return;
+          const lead = moveLead.lead;
+          setMoveLead(null);
+          requestSingleMove(lead, targetStage);
+        }}
+      />
 
       <LeadDrawer
         leadId={drawerLeadId}

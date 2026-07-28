@@ -14,7 +14,7 @@ import { LostReasonModal } from '@/components/kanban/lost-reason-modal';
 import { SoftBlockModal } from '@/components/kanban/soft-block-modal';
 import { labelForField, validateRequiredFields } from '@/lib/leads/validators';
 import type { Activity, Appointment, ContactAttempt, Lead } from '@/types/lead';
-import type { PipelineKind } from '@/types/pipeline';
+import { PIPELINE_LABELS, type PipelineKind } from '@/types/pipeline';
 import type { LeadDealSummary, StageWithCount } from '@/actions/leads-queries';
 import { LeadDataTab } from './lead-data-tab';
 import { LeadTimelineTab } from './lead-timeline-tab';
@@ -179,7 +179,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
     ? [
         {
           id: 'dados',
-          label: 'Dados',
+          label: 'Ficha da família',
           content: (
             <LeadDataTab
               lead={payload.lead}
@@ -194,7 +194,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
         },
         {
           id: 'timeline',
-          label: `Timeline (${payload.activities.filter((a) => a.type !== 'note').length})`,
+          label: `Histórico (${payload.activities.filter((a) => a.type !== 'note').length})`,
           content: (
             <LeadTimelineTab
               leadId={payload.lead.id}
@@ -208,7 +208,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
         },
         {
           id: 'agendamentos',
-          label: `Agendamentos (${payload.appointments.length})`,
+          label: `Visitas (${payload.appointments.length})`,
           content: (
             <LeadAppointmentsTab
               leadId={payload.lead.id}
@@ -224,12 +224,12 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
         },
         {
           id: 'tarefas',
-          label: 'Tarefas',
+          label: 'Pendências',
           content: <LeadTasksTab leadId={payload.lead.id} />,
         },
         {
           id: 'notas',
-          label: `Notas (${payload.activities.filter((a) => a.type === 'note').length})`,
+          label: `Anotações (${payload.activities.filter((a) => a.type === 'note').length})`,
           content: (
             <LeadNotesTab
               leadId={payload.lead.id}
@@ -252,8 +252,11 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
         payload ? (
           <div className="flex items-center gap-2">
             <p className="truncate text-lg font-semibold text-brand-700">{payload.lead.name}</p>
-            <Badge tone="neutral">{payload.lead.pipeline}</Badge>
-            <Badge tone="brand">{payload.lead.stage}</Badge>
+            <Badge tone="neutral">{PIPELINE_LABELS[payload.lead.pipeline]}</Badge>
+            <Badge tone="brand">
+              {payload.stages.find((stage) => stage.slug === payload.lead.stage)?.name ??
+                payload.lead.stage}
+            </Badge>
           </div>
         ) : (
           <p className="text-sm text-brand-400">Carregando...</p>
@@ -271,7 +274,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
             <div className="flex flex-1 items-end gap-2">
               <div className="min-w-44 flex-1">
                 <Select
-                  label="Mover para etapa"
+                  label="Atualizar etapa da matrícula"
                   value={targetStage}
                   onChange={(e) => setTargetStage(e.target.value)}
                 >
@@ -288,7 +291,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
                 disabled={isMoving || targetStage === payload.lead.stage}
                 onClick={handleMove}
               >
-                {isMoving ? 'Movendo…' : 'Mover'}
+                {isMoving ? 'Atualizando…' : 'Salvar etapa'}
               </Button>
             </div>
             <div className="flex items-end gap-2">
@@ -299,7 +302,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
                   href={`/chat?c=${payload.conversationId}`}
                   className="focus-ring flex h-10 items-center gap-1.5 rounded-md bg-brand-700 px-3 text-sm font-medium text-canvas hover:bg-brand-800"
                 >
-                  <span aria-hidden="true">💬</span> Ir para o chat
+                  <span aria-hidden="true">💬</span> Abrir conversa
                 </Link>
               )}
               {!payload.lead.is_archived &&
@@ -310,7 +313,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
                     className="h-10"
                     onClick={() => setLostOpen(true)}
                   >
-                    Marcar como perdido
+                    Encerrar como não interessado
                   </Button>
                 )}
             </div>

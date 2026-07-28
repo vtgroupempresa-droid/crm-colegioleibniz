@@ -257,28 +257,28 @@ export function BoardFilterBar({
     <div className="rounded-lg border border-brand-100 bg-white p-3">
       <div className="flex flex-wrap items-center gap-2">
         <FilterDropdown
-          label="Interesse"
+          label="Momento da decisão"
           options={interestOptions}
           active={interestFilter}
           onSelect={(v) => setParam('interesse', v)}
           disabled={isPending}
         />
         <FilterDropdown
-          label="Fonte"
+          label="Como chegou"
           options={sourceOptions}
           active={sourceFilter}
           onSelect={(v) => setParam('fonte', v)}
           disabled={isPending}
         />
         <FilterDropdown
-          label="Responsável"
+          label="Atendente"
           options={assigneeOptions}
           active={assignedFilter}
           onSelect={(v) => setParam('responsavel', v)}
           disabled={isPending}
         />
         <FilterDropdown
-          label="Atendimento"
+          label="Situação da conversa"
           options={qualificationOptions}
           active={qualificationFilter}
           onSelect={(v) => setParam('qualificacao', v)}
@@ -301,7 +301,7 @@ export function BoardFilterBar({
             type="search"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            placeholder="Buscar lead nesta visão..."
+            placeholder="Buscar família, aluno, telefone ou e-mail..."
             className="w-full rounded-full border border-brand-200 bg-white py-1.5 pl-9 pr-3 text-xs text-brand-700 placeholder:text-brand-300 focus:border-brand-400 focus:outline-none"
           />
         </div>

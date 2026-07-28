@@ -13,8 +13,8 @@ export type PipelineStage = Tables<'pipeline_stages'>;
 export const PIPELINES: readonly PipelineKind[] = ['comercial', 'pos_matricula'] as const;
 
 export const PIPELINE_LABELS: Record<PipelineKind, string> = {
-  comercial: 'Comercial',
-  pos_matricula: 'Pós-Matrícula',
+  comercial: 'Jornada de matrícula',
+  pos_matricula: 'Acompanhamento pós-matrícula',
 };
 
 export function isPipelineKind(value: string): value is PipelineKind {

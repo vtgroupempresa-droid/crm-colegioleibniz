@@ -127,7 +127,7 @@ export function LeadDataTab({
         toast.error(result.error);
         return;
       }
-      toast.success('Lead atualizado');
+      toast.success('Dados da família atualizados');
       await onMutated?.();
       router.refresh();
     });
@@ -137,9 +137,10 @@ export function LeadDataTab({
     <>
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="flex items-center justify-between rounded-md border border-brand-100 bg-white px-3 py-2">
-        <p className="text-xs text-brand-400">Localização</p>
+        <p className="text-xs text-brand-400">Etapa atual da matrícula</p>
         <p className="text-sm font-medium text-brand-700">
-          {lead.pipeline} · {lead.stage}
+          {lead.pipeline === 'comercial' ? 'Jornada de matrícula' : 'Acompanhamento pós-matrícula'} ·{' '}
+          {lead.stage.replaceAll('_', ' ')}
         </p>
       </div>
 
@@ -157,7 +158,7 @@ export function LeadDataTab({
         <Input label="Cidade" value={form.city} onChange={(e) => set('city', e.target.value)} />
         <Input label="Estado" value={form.state} onChange={(e) => set('state', e.target.value)} />
         <Select
-          label="Nível de interesse"
+          label="Momento de decisão"
           value={form.interest_level}
           onChange={(e) => set('interest_level', e.target.value)}
         >
@@ -238,11 +239,11 @@ export function LeadDataTab({
       </fieldset>
 
       <Select
-        label="Responsável pelo atendimento"
+        label="Atendente responsável"
         value={form.assigned_to}
         onChange={(e) => set('assigned_to', e.target.value)}
       >
-        <option value="">Sem responsável</option>
+        <option value="">Ainda sem atendente</option>
         {users.map((u) => (
           <option key={u.id} value={u.id}>
             {u.name} ({USER_ROLE_LABELS[u.role as UserRole] ?? u.role})

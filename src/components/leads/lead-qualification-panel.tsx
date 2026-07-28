@@ -81,7 +81,7 @@ export function LeadQualificationPanel({ lead, onMutated }: LeadQualificationPan
 
   function handleSave() {
     if (!status) {
-      toast.error('Escolha como foi o atendimento');
+      toast.error('Escolha como a conversa com a família evoluiu');
       return;
     }
     if (status === 'outro' && !description.trim()) {
@@ -102,7 +102,7 @@ export function LeadQualificationPanel({ lead, onMutated }: LeadQualificationPan
         toast.error(result.error);
         return;
       }
-      toast.success('Resumo do atendimento salvo');
+      toast.success('Registro da conversa salvo');
       await onMutated?.();
       router.refresh();
     });
@@ -112,9 +112,9 @@ export function LeadQualificationPanel({ lead, onMutated }: LeadQualificationPan
     <section className="rounded-lg border border-brand-200 bg-brand-50/60 p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-brand-700">Resumo do atendimento</h3>
+          <h3 className="text-sm font-semibold text-brand-700">Conversa com a família</h3>
           <p className="text-xs text-brand-500">
-            Registre a percepção da conversa e o próximo passo sem sair do lead.
+            Registre o momento da família e combine o próximo passo da matrícula.
           </p>
         </div>
         {savedStatus && <Badge tone="brand">{LEAD_QUALIFICATION_LABELS[savedStatus]}</Badge>}
@@ -136,7 +136,7 @@ export function LeadQualificationPanel({ lead, onMutated }: LeadQualificationPan
       )}
 
       <div className="mt-3" role="group" aria-label="Como foi o atendimento?">
-        <p className="mb-1.5 text-xs font-medium text-brand-600">Como foi o atendimento?</p>
+          <p className="mb-1.5 text-xs font-medium text-brand-600">Como a conversa evoluiu?</p>
         <div className="flex flex-wrap gap-1.5">
           {LEAD_QUALIFICATION_STATUSES.map((option) => (
             <button
@@ -159,10 +159,10 @@ export function LeadQualificationPanel({ lead, onMutated }: LeadQualificationPan
 
       <div className="mt-3">
         <Textarea
-          label="Descrição da conversa"
+          label="O que a família disse?"
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="Ex.: Gostou da proposta, mas precisa confirmar a decisão com a família até sexta."
+          placeholder="Ex.: Gostou do Colégio Leibniz, mas vai comparar horários e confirma até sexta."
           rows={3}
           maxLength={2000}
         />
@@ -170,7 +170,7 @@ export function LeadQualificationPanel({ lead, onMutated }: LeadQualificationPan
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <Select
-          label="Próximo passo (opcional)"
+          label="Próximo combinado (opcional)"
           value={nextAction ?? ''}
           onChange={(event) => {
             const value = event.target.value;
@@ -178,7 +178,7 @@ export function LeadQualificationPanel({ lead, onMutated }: LeadQualificationPan
             if (!value) setNextActionAt('');
           }}
         >
-          <option value="">Sem próximo passo definido</option>
+          <option value="">Ainda não há combinado</option>
           {LEAD_QUALIFICATION_NEXT_ACTIONS.map((action) => (
             <option key={action} value={action}>
               {LEAD_QUALIFICATION_NEXT_ACTION_LABELS[action]}
@@ -186,7 +186,7 @@ export function LeadQualificationPanel({ lead, onMutated }: LeadQualificationPan
           ))}
         </Select>
         <Input
-          label="Quando retornar? (opcional)"
+          label="Quando retomar o contato? (opcional)"
           type="datetime-local"
           value={nextActionAt}
           onChange={(event) => setNextActionAt(event.target.value)}
@@ -196,7 +196,7 @@ export function LeadQualificationPanel({ lead, onMutated }: LeadQualificationPan
 
       <div className="mt-3 flex justify-end">
         <Button type="button" size="sm" onClick={handleSave} disabled={isPending || !status}>
-          {isPending ? 'Salvando...' : 'Salvar atualização'}
+          {isPending ? 'Salvando...' : 'Salvar conversa'}
         </Button>
       </div>
     </section>

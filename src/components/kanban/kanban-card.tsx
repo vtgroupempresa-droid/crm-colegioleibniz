@@ -61,6 +61,8 @@ interface KanbanCardProps {
   /** True enquanto um arrasto EM GRUPO acontece — esmaece os outros selecionados. */
   groupDragging?: boolean;
   onOpen: (leadId: string) => void;
+  /** Abre o seletor de etapa; é o caminho preferencial em telas de toque. */
+  onMove?: (leadId: string) => void;
   onOpenChat?: (leadId: string) => void;
   onQuickAttempt?: (leadId: string) => void;
   /** Ação rápida "Registrar contato" (cards de captação e SDR). */
@@ -115,6 +117,7 @@ export function KanbanCard({
   onToggleSelect,
   groupDragging = false,
   onOpen,
+  onMove,
   onOpenChat,
   onQuickAttempt,
   onRegisterContact,
@@ -188,6 +191,17 @@ export function KanbanCard({
           <EducationTag lead={lead} />
         </button>
         <div className="flex shrink-0 items-center gap-0.5">
+          {onMove && (
+            <button
+              type="button"
+              aria-label="Mover para outra etapa"
+              title="Mover para outra etapa"
+              onClick={() => onMove(lead.id)}
+              className="focus-ring rounded p-1 text-brand-300 hover:bg-brand-100 hover:text-brand-600"
+            >
+              →
+            </button>
+          )}
           {onOpenChat && (
             <button
               type="button"

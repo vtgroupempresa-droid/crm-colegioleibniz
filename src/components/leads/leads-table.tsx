@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { GaugeCard, type GaugeColor, type GaugePillTone } from './gauge-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -235,8 +234,16 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
     meetingToday: searchParams.get('meetingToday') === '1',
     newToday: searchParams.get('newToday') === '1',
   });
-  const [showAdvanced, setShowAdvanced] = useState(
-    Boolean(filters.educationLevel || filters.interest),
+  const [showFilters, setShowFilters] = useState(
+    Boolean(
+      filters.pipeline ||
+        filters.educationLevel ||
+        filters.source ||
+        filters.period ||
+        filters.interest ||
+        filters.sortBy !== 'created_at' ||
+        filters.sortDir !== 'desc',
+    ),
   );
 
   function pushFilters(next: FiltersState, nextPage = 1) {
@@ -265,84 +272,6 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // --------------------------------------------------------------------------
-  // Mini-dashboard de gauges
-  // --------------------------------------------------------------------------
-  const base = Math.max(1, stats.totalLeads);
-  const pctOfBase = (n: number) => `${Math.round((100 * n) / base)}% da base ativa`;
-  const salesDelta = stats.salesThisMonth - stats.salesPrevWindow;
-  const gauges: {
-    value: number;
-    max: number;
-    color: GaugeColor;
-    label: string;
-    description: string;
-    pill: { text: string; tone: GaugePillTone };
-  }[] = [
-    {
-      value: stats.totalLeads,
-      max: base,
-      color: 'blue',
-      label: 'Total de leads',
-      description: 'Leads na base ativa (não arquivados)',
-      pill:
-        stats.newThisWeek > 0
-          ? { text: `↑ ${stats.newThisWeek} esta semana`, tone: 'up' }
-          : { text: 'estável na semana', tone: 'neutral' },
-    },
-    {
-      value: stats.hotLeads,
-      max: base,
-      color: 'red',
-      label: 'Interesse alto',
-      description: 'Leads com nível de interesse alto',
-      pill: { text: pctOfBase(stats.hotLeads), tone: 'neutral' },
-    },
-    {
-      value: stats.warmLeads,
-      max: base,
-      color: 'amber',
-      label: 'Interesse médio',
-      description: 'Leads com nível de interesse médio',
-      pill: { text: pctOfBase(stats.warmLeads), tone: 'neutral' },
-    },
-    {
-      value: stats.meetingsToday,
-      max: Math.max(8, stats.meetingsToday),
-      color: 'green',
-      label: 'Visitas hoje',
-      description: 'Visitas presenciais agendadas para hoje',
-      pill:
-        stats.meetingsToday > 0
-          ? { text: 'agenda do dia', tone: 'up' }
-          : { text: 'nenhuma hoje', tone: 'neutral' },
-    },
-    {
-      value: stats.slaBreachedLeads,
-      max: Math.max(25, stats.slaBreachedLeads),
-      color: 'red',
-      label: 'SLA vencido',
-      description: 'Tentativa de contato atrasada, sem resposta',
-      pill:
-        stats.slaBreachedLeads > 0
-          ? { text: '⚠ precisa de ação', tone: 'alert' }
-          : { text: 'tudo em dia', tone: 'up' },
-    },
-    {
-      value: stats.salesThisMonth,
-      max: Math.max(10, stats.salesThisMonth, stats.salesPrevWindow),
-      color: 'purple',
-      label: 'Matrículas no mês',
-      description: 'Matrículas fechadas no mês corrente',
-      pill:
-        salesDelta > 0
-          ? { text: `↑ ${salesDelta} vs mês anterior`, tone: 'up' }
-          : salesDelta < 0
-            ? { text: `↓ ${Math.abs(salesDelta)} vs mês anterior`, tone: 'down' }
-            : { text: 'estável no mês', tone: 'neutral' },
-    },
-  ];
-
-  // --------------------------------------------------------------------------
   // Chips de atalho rápido
   // --------------------------------------------------------------------------
   const noChipActive =
@@ -361,7 +290,7 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
     },
     {
       key: 'unassigned',
-      label: 'Sem responsável',
+      label: 'Sem atendente',
       count: stats.unassignedLeads,
       next: { ...EMPTY_FILTERS, unassigned: true },
       isActive: (f) => f.unassigned,
@@ -402,19 +331,28 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
     <section className="flex flex-col gap-4">
       <header className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-brand-700">Todos os Leads</h2>
+          <h2 className="text-2xl font-semibold text-brand-700">Famílias interessadas</h2>
           <p className="text-sm text-brand-500">
-            {total} {total === 1 ? 'lead' : 'leads'} · página {page}/{totalPages}
+            Encontre uma família, veja a prioridade e abra a ficha para atender.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>+ Novo lead</Button>
+        <Button onClick={() => setCreateOpen(true)}>+ Cadastrar família</Button>
       </header>
 
-      {/* 1. Mini-dashboard de gauges — scroll horizontal no mobile, grid no resto */}
-      <div className="grid grid-flow-col auto-cols-[minmax(150px,1fr)] gap-3 overflow-x-auto pb-1 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 sm:overflow-visible sm:pb-0 xl:grid-cols-6">
-        {gauges.map((g) => (
-          <GaugeCard key={g.label} {...g} />
-        ))}
+      {/* Resumo único: preserva contexto sem transformar a lista em dashboard. */}
+      <div className="grid grid-cols-3 divide-x divide-brand-100 rounded-lg border border-brand-100 bg-white">
+        <div className="px-3 py-2.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-brand-400">Na base</p>
+          <p className="mt-0.5 text-lg font-semibold text-brand-700">{stats.totalLeads}</p>
+        </div>
+        <div className="px-3 py-2.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-brand-400">Retorno pendente</p>
+          <p className="mt-0.5 text-lg font-semibold text-red-600">{stats.slaBreachedLeads}</p>
+        </div>
+        <div className="px-3 py-2.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-brand-400">Visitas hoje</p>
+          <p className="mt-0.5 text-lg font-semibold text-emerald-700">{stats.meetingsToday}</p>
+        </div>
       </div>
 
       {/* 2. Chips de atalho rápido */}
@@ -450,12 +388,12 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
         })}
       </div>
 
-      {/* 3. Barra de filtros com labels */}
-      <div className="rounded-lg border border-brand-100 bg-white p-4">
-        <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-3 xl:grid-cols-7">
-          <div className="md:col-span-2">
+      {/* Busca sempre acessível; opções secundárias só aparecem quando solicitadas. */}
+      <div className="rounded-lg border border-brand-100 bg-white p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
             <Input
-              label="Buscar lead"
+              label="Buscar família"
               placeholder="Nome do responsável, do aluno, telefone ou e-mail"
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
@@ -464,86 +402,62 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
               }}
             />
           </div>
-          <Select
-            label="Pipeline"
-            value={filters.pipeline}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, pipeline: e.target.value as PipelineKind | '' }))
-            }
-          >
-            <option value="">Todos</option>
-            {PIPELINES.map((p) => (
-              <option key={p} value={p}>
-                {PIPELINE_LABELS[p]}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Origem do lead"
-            value={filters.source}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, source: e.target.value as LeadSource | '' }))
-            }
-          >
-            <option value="">Todas</option>
-            {LEAD_SOURCES.map((s) => (
-              <option key={s} value={s}>
-                {LEAD_SOURCE_LABELS[s]}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Período"
-            value={filters.period}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, period: e.target.value as PeriodKind | '' }))
-            }
-          >
-            <option value="">Todo o período</option>
-            {PERIOD_KINDS.map((p) => (
-              <option key={p} value={p}>
-                {PERIOD_LABELS[p]}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Ordenar por"
-            value={filters.sortBy}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, sortBy: e.target.value as FiltersState['sortBy'] }))
-            }
-          >
-            <option value="created_at">Criado em</option>
-            <option value="updated_at">Atualizado em</option>
-          </Select>
           <Button
             variant="secondary"
-            onClick={() => setShowAdvanced((v) => !v)}
-            aria-expanded={showAdvanced}
+            onClick={() => setShowFilters((value) => !value)}
+            aria-expanded={showFilters}
           >
-            ⚙ Mais filtros
+            {showFilters ? 'Ocultar filtros' : 'Filtros'}
+          </Button>
+          <Button onClick={() => applyFilters()} disabled={isPending}>
+            {isPending ? 'Buscando...' : 'Buscar'}
           </Button>
         </div>
 
-        {filters.period === 'custom' && (
-          <div className="mt-3 grid grid-cols-1 gap-3 border-t border-brand-100 pt-3 md:grid-cols-4">
-            <Input
-              label="Criado de"
-              type="date"
-              value={filters.periodFrom}
-              onChange={(e) => setFilters((f) => ({ ...f, periodFrom: e.target.value }))}
-            />
-            <Input
-              label="Criado até"
-              type="date"
-              value={filters.periodTo}
-              onChange={(e) => setFilters((f) => ({ ...f, periodTo: e.target.value }))}
-            />
-          </div>
-        )}
-
-        {showAdvanced && (
-          <div className="mt-3 grid grid-cols-1 gap-3 border-t border-brand-100 pt-3 md:grid-cols-4">
+        {showFilters && (
+          <div className="mt-3 grid grid-cols-1 gap-3 border-t border-brand-100 pt-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Select
+              label="Jornada"
+              value={filters.pipeline}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, pipeline: e.target.value as PipelineKind | '' }))
+              }
+            >
+              <option value="">Todas</option>
+              {PIPELINES.map((p) => (
+                <option key={p} value={p}>
+                  {PIPELINE_LABELS[p]}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Como a família chegou"
+              value={filters.source}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, source: e.target.value as LeadSource | '' }))
+              }
+            >
+              <option value="">Todas</option>
+              {LEAD_SOURCES.map((s) => (
+                <option key={s} value={s}>
+                  {LEAD_SOURCE_LABELS[s]}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Período de entrada"
+              value={filters.period}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, period: e.target.value as PeriodKind | '' }))
+              }
+            >
+              <option value="">Todo o período</option>
+              {PERIOD_KINDS.map((p) => (
+                <option key={p} value={p}>
+                  {PERIOD_LABELS[p]}
+                </option>
+              ))}
+            </Select>
             <Select
               label="Nível de ensino"
               value={filters.educationLevel}
@@ -559,7 +473,7 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
               ))}
             </Select>
             <Select
-              label="Nível de interesse"
+              label="Momento de decisão"
               value={filters.interest}
               onChange={(e) =>
                 setFilters((f) => ({ ...f, interest: e.target.value as InterestLevel | '' }))
@@ -573,7 +487,17 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
               ))}
             </Select>
             <Select
-              label="Direção"
+              label="Ordenar por"
+              value={filters.sortBy}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, sortBy: e.target.value as FiltersState['sortBy'] }))
+              }
+            >
+              <option value="created_at">Mais recentes</option>
+              <option value="updated_at">Atualizadas recentemente</option>
+            </Select>
+            <Select
+              label="Ordem"
               value={filters.sortDir}
               onChange={(e) =>
                 setFilters((f) => ({ ...f, sortDir: e.target.value as FiltersState['sortDir'] }))
@@ -582,15 +506,28 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
               <option value="desc">Descendente</option>
               <option value="asc">Ascendente</option>
             </Select>
+            {filters.period === 'custom' && (
+              <>
+                <Input
+                  label="Entrou a partir de"
+                  type="date"
+                  value={filters.periodFrom}
+                  onChange={(e) => setFilters((f) => ({ ...f, periodFrom: e.target.value }))}
+                />
+                <Input
+                  label="Entrou até"
+                  type="date"
+                  value={filters.periodTo}
+                  onChange={(e) => setFilters((f) => ({ ...f, periodTo: e.target.value }))}
+                />
+              </>
+            )}
           </div>
         )}
 
-        <div className="mt-3 flex justify-end gap-2">
+        <div className="mt-3 flex justify-end">
           <Button variant="ghost" size="sm" onClick={resetFilters} disabled={isPending}>
-            Limpar
-          </Button>
-          <Button size="sm" onClick={() => applyFilters()} disabled={isPending}>
-            {isPending ? 'Filtrando...' : 'Aplicar filtros'}
+            Limpar busca e filtros
           </Button>
         </div>
       </div>
@@ -600,18 +537,17 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
         <table className="w-full text-sm">
           <thead className="bg-brand-50 text-left text-xs uppercase tracking-wide text-brand-500">
             <tr>
-              <th className="px-3 py-2">Lead</th>
-              <th className="px-3 py-2">Pipeline</th>
-              <th className="px-3 py-2">Origem</th>
-              <th className="px-3 py-2">Interesse</th>
-              <th className="px-3 py-2">Criado</th>
+              <th className="px-3 py-2">Família e aluno</th>
+              <th className="px-3 py-2">Etapa atual</th>
+              <th className="px-3 py-2">Prioridade</th>
+              <th className="px-3 py-2">Atualizado</th>
             </tr>
           </thead>
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-brand-400">
-                  Nenhum lead encontrado com esses filtros.
+                <td colSpan={4} className="px-3 py-6 text-center text-brand-400">
+                  Nenhuma família encontrada com esses filtros.
                 </td>
               </tr>
             )}
@@ -628,7 +564,9 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
                     </span>
                     <div className="min-w-0">
                       <p className="truncate font-bold text-brand-700">{lead.name}</p>
-                      <p className="truncate text-xs text-brand-300">{lead.phone ?? '—'}</p>
+                      <p className="truncate text-xs text-brand-300">
+                        {lead.child_name ? `Aluno: ${lead.child_name}` : lead.phone ?? 'Aluno não informado'}
+                      </p>
                     </div>
                   </div>
                 </td>
@@ -640,16 +578,14 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <SourcePill source={lead.source} />
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <InterestPill level={lead.interest_level} />
+                    <SourcePill source={lead.source} />
+                  </div>
                 </td>
                 <td className="px-3 py-2">
-                  <InterestPill level={lead.interest_level} />
-                </td>
-                <td className="px-3 py-2">
-                  <p className="text-xs text-brand-500">{formatDate(lead.created_at)}</p>
-                  <span className="mt-0.5 inline-flex rounded bg-brand-50 px-1.5 py-0.5 text-[10px] text-brand-400">
-                    {formatRelativeCompact(lead.created_at)}
-                  </span>
+                  <p className="text-xs text-brand-500">{formatRelativeCompact(lead.updated_at)}</p>
+                  <p className="mt-0.5 text-[10px] text-brand-300">{formatDate(lead.updated_at)}</p>
                 </td>
               </tr>
             ))}
@@ -661,7 +597,7 @@ export function LeadsTable({ leads, total, page, pageSize, stats, stageLabels }:
       <div className="flex flex-col gap-2 sm:hidden">
         {leads.length === 0 && (
           <p className="rounded-lg border border-brand-100 bg-white px-4 py-6 text-center text-sm text-brand-400">
-            Nenhum lead encontrado com esses filtros.
+            Nenhuma família encontrada com esses filtros.
           </p>
         )}
         {leads.map((lead) => (

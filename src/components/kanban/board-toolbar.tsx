@@ -121,7 +121,8 @@ export function BoardToolbar({
       <div className="mr-1 min-w-0">
         <h2 className="truncate text-lg font-semibold leading-tight text-brand-700">{title}</h2>
         <p className="text-xs text-brand-400">
-          {totalCount.toLocaleString('pt-BR')} {totalCount === 1 ? 'lead ativo' : 'leads ativos'}
+          {totalCount.toLocaleString('pt-BR')}{' '}
+          {totalCount === 1 ? 'família em atendimento' : 'famílias em atendimento'}
         </p>
       </div>
       <div
@@ -183,8 +184,8 @@ export function BoardToolbar({
           type="search"
           value={term}
           onChange={(e) => setTerm(e.target.value)}
-          placeholder="Buscar lead..."
-          title="Busca por nome, telefone, e-mail ou CRM"
+          placeholder="Buscar família..."
+          title="Busca por responsável, aluno, telefone ou e-mail"
           className="w-40 rounded-md border border-brand-200 bg-white px-3 py-1.5 text-sm text-brand-700 placeholder:text-brand-300 focus:border-brand-400 focus:outline-none sm:w-56"
         />
         <button
@@ -192,7 +193,7 @@ export function BoardToolbar({
           onClick={onNewLead}
           className="shrink-0 rounded-md bg-brand-700 px-3 py-1.5 text-sm font-medium text-canvas hover:bg-brand-800"
         >
-          + Novo lead
+          + Cadastrar família
         </button>
       </div>
     </div>

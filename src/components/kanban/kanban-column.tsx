@@ -40,7 +40,7 @@ export function KanbanColumn({
         // Mobile: largura total, empilhado (altura por conteúdo).
         // sm+: coluna de 18rem ocupando a altura do board.
         'flex w-full shrink-0 flex-col rounded-lg border border-brand-100 bg-brand-50/60 transition-colors sm:h-full sm:w-72',
-        isOver && 'border-brand-400 bg-brand-100',
+        isOver && 'border-brand-500 bg-brand-100 ring-2 ring-brand-300 ring-inset',
       )}
     >
       <header
@@ -74,6 +74,11 @@ export function KanbanColumn({
           )}
         </span>
       </header>
+      {isOver && (
+        <p className="mx-2 mt-2 rounded-md bg-brand-700 px-2 py-1.5 text-center text-xs font-semibold text-canvas">
+          Solte aqui para mover
+        </p>
+      )}
       <SortableContext items={itemIds as string[]} strategy={verticalListSortingStrategy}>
         <div
           data-kanban-column-scroll

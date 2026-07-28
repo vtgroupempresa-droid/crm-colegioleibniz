@@ -7,7 +7,7 @@ import { AssigneeAvatar } from '@/components/ui/assignee-avatar';
 import { InterestBadge } from '@/components/leads/interest-badge';
 import { cn } from '@/lib/utils/cn';
 import { formatDateTime, formatRelative } from '@/lib/utils/format';
-import { MAX_ATTEMPTS, slaStatusFor, type SlaStatus } from '@/lib/sla/rules';
+import { MAX_ATTEMPTS, formatSlaCountdown, slaStatusFor, type SlaStatus } from '@/lib/sla/rules';
 import { TEMPERATURE_LABELS, leadTemperature, type LeadTemperature } from '@/lib/leads/temperature';
 import { labelForField } from '@/lib/leads/validators';
 import { appointmentBadge } from './kanban-card';
@@ -79,6 +79,8 @@ interface KanbanCardCompactProps {
   onToggleSelect: (leadId: string) => void;
   groupDragging?: boolean;
   onOpen: (leadId: string) => void;
+  /** Abre o seletor de etapa; evita arrasto longo no celular. */
+  onMove?: (leadId: string) => void;
   onOpenChat?: (leadId: string) => void;
   onQuickAttempt?: (leadId: string) => void;
   onRegisterContact?: (leadId: string) => void;
@@ -93,8 +95,8 @@ interface KanbanCardCompactProps {
  *   [dot SLA] [avatar] Nome + (origem · tempo no stage)  [score] [ações no hover]
  *
  * Interações:
- *  - O card INTEIRO é a alça de drag (sem ⋮⋮) — `touch-pan-y` preserva o scroll
- *    da coluna no celular (lá o drag fica por conta do modo confortável/"Mover…").
+ *  - A alça ⋮⋮ é a ÚNICA forma de iniciar um arrasto, igual ao card confortável.
+ *    No celular, o botão "Mover etapa" é o caminho principal e não disputa o scroll.
  *  - Clique fora de botões abre o LeadDrawer; guard descarta o clique fantasma
  *    disparado logo após um drag.
  *  - Ações (tentativa/contato/chat) aparecem no hover; em telas sem hover ficam
@@ -118,6 +120,7 @@ export function KanbanCardCompact({
   onToggleSelect,
   groupDragging = false,
   onOpen,
+  onMove,
   onOpenChat,
   onQuickAttempt,
   onRegisterContact,
@@ -189,8 +192,6 @@ export function KanbanCardCompact({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      {...attributes}
-      {...listeners}
       aria-label={lead.name}
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
@@ -262,6 +263,11 @@ export function KanbanCardCompact({
           {metaFirst} · {reentered ? 'voltou' : 'na etapa'} {formatRelative(stageEnteredAt)}
           {temp && <span className={TEMPERATURE_TEXT[temp]}> · {TEMPERATURE_LABELS[temp]}</span>}
           {qualificationStatus && <span className="text-sky-700"> · {LEAD_QUALIFICATION_LABELS[qualificationStatus]}</span>}
+          {(sla.status === 'breached' || sla.status === 'warning') && (
+            <span className={sla.status === 'breached' ? 'font-semibold text-red-600' : 'text-amber-700'}>
+              {' · '}{formatSlaCountdown(nextSlaAt)}
+            </span>
+          )}
           {lead.is_no_show && <span className="font-semibold text-red-600"> · NO-SHOW</span>}
           {aptBadge && <span className={APT_BADGE_TEXT[aptBadge.tone]}> · {aptBadge.label}</span>}
         </p>
@@ -286,6 +292,27 @@ export function KanbanCardCompact({
           aria-label={`Selecionar ${lead.name}`}
           className="hidden h-4 w-4 cursor-pointer accent-brand-600 [@media(hover:none)]:block"
         />
+        {onMove && (
+          <button
+            type="button"
+            aria-label="Mover para outra etapa"
+            title="Mover para outra etapa"
+            onClick={() => onMove(lead.id)}
+            className="focus-ring rounded p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-700"
+          >
+            →
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label="Arrastar para outra etapa"
+          title="Arrastar para outra etapa"
+          className="focus-ring cursor-grab rounded px-1 text-brand-400 hover:bg-brand-100 hover:text-brand-700 active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          ⋮⋮
+        </button>
         {onQuickAttempt && attemptsCount < MAX_ATTEMPTS && (
           <button
             type="button"

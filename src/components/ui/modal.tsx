@@ -12,9 +12,19 @@ interface ModalProps {
   maxWidthClassName?: string;
   /** Tooltip (title) do botão de fechar — ex.: avisar que nada será salvo. */
   closeHint?: string;
+  /** No mobile, um painel inferior deixa escolhas operacionais mais fáceis de alcançar. */
+  placement?: 'center' | 'bottom';
 }
 
-export function Modal({ open, onClose, title, children, maxWidthClassName, closeHint }: ModalProps) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  maxWidthClassName,
+  closeHint,
+  placement = 'center',
+}: ModalProps) {
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -33,7 +43,12 @@ export function Modal({ open, onClose, title, children, maxWidthClassName, close
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div
+      className={cn(
+        'fixed inset-0 z-50 flex',
+        placement === 'bottom' ? 'items-end justify-center sm:items-center sm:px-4' : 'items-center justify-center px-4',
+      )}
+    >
       <button
         type="button"
         aria-label="Fechar"
@@ -45,6 +60,7 @@ export function Modal({ open, onClose, title, children, maxWidthClassName, close
         aria-modal="true"
         className={cn(
           'relative flex max-h-[90vh] w-full flex-col overflow-hidden rounded-lg bg-canvas shadow-xl',
+          placement === 'bottom' && 'max-h-[85vh] rounded-b-none rounded-t-xl sm:max-h-[90vh] sm:rounded-lg',
           maxWidthClassName ?? 'max-w-xl',
         )}
       >
