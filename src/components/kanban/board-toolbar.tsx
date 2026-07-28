@@ -117,10 +117,15 @@ export function BoardToolbar({
   }, [term, pipeline, interestFilter, sourceFilter, assignedFilter, qualificationFilter, isDemo, onSearch]);
 
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-      <div className="mr-1 min-w-0">
-        <h2 className="truncate text-lg font-semibold leading-tight text-brand-700">{title}</h2>
-        <p className="text-xs text-brand-400">
+    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-brand-100 bg-white px-3 py-2 shadow-sm">
+      <div className="mr-auto min-w-0">
+        <div className="flex items-baseline gap-2">
+          <h2 className="truncate text-base font-semibold leading-tight text-brand-700">{title}</h2>
+          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium tabular-nums text-brand-600">
+            {totalCount.toLocaleString('pt-BR')}
+          </span>
+        </div>
+        <p className="mt-0.5 text-[11px] text-brand-400">
           {totalCount.toLocaleString('pt-BR')}{' '}
           {totalCount === 1 ? 'família em atendimento' : 'famílias em atendimento'}
         </p>
@@ -129,7 +134,7 @@ export function BoardToolbar({
         className="flex items-center gap-1 rounded-md border border-brand-200 bg-white p-0.5 text-xs"
         title="A coluna Novo Lead é sempre ordenada por data"
       >
-        <span className="px-1.5 text-brand-400">Ordenar:</span>
+        <span className="hidden px-1.5 text-brand-400 sm:inline">Ordenar:</span>
         <button
           type="button"
           onClick={() => setSort('data')}
@@ -179,23 +184,13 @@ export function BoardToolbar({
         </button>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        <input
-          type="search"
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-          placeholder="Buscar família..."
-          title="Busca por responsável, aluno, telefone ou e-mail"
-          className="w-40 rounded-md border border-brand-200 bg-white px-3 py-1.5 text-sm text-brand-700 placeholder:text-brand-300 focus:border-brand-400 focus:outline-none sm:w-56"
-        />
-        <button
-          type="button"
-          onClick={onNewLead}
-          className="shrink-0 rounded-md bg-brand-700 px-3 py-1.5 text-sm font-medium text-canvas hover:bg-brand-800"
-        >
-          + Cadastrar família
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onNewLead}
+        className="ml-auto shrink-0 rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-semibold text-canvas shadow-sm transition-colors hover:bg-brand-800"
+      >
+        + Nova família
+      </button>
     </div>
   );
 }

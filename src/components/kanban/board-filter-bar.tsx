@@ -253,8 +253,10 @@ export function BoardFilterBar({
     });
   }
 
+  const hasActiveFilters = activeChips.length > 0 || term.trim().length > 0;
+
   return (
-    <div className="rounded-lg border border-brand-100 bg-white p-3">
+    <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <FilterDropdown
           label="Momento da decisão"
@@ -305,18 +307,20 @@ export function BoardFilterBar({
             className="w-full rounded-full border border-brand-200 bg-white py-1.5 pl-9 pr-3 text-xs text-brand-700 placeholder:text-brand-300 focus:border-brand-400 focus:outline-none"
           />
         </div>
-        <button
-          type="button"
-          onClick={clearAll}
-          disabled={isPending}
-          className="focus-ring shrink-0 text-xs font-medium text-red-600 underline-offset-2 hover:underline"
-        >
-          Limpar filtros
-        </button>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={clearAll}
+            disabled={isPending}
+            className="focus-ring shrink-0 px-1 text-xs font-medium text-brand-500 underline-offset-2 hover:text-red-600 hover:underline"
+          >
+            Limpar
+          </button>
+        )}
       </div>
 
       {activeChips.length > 0 && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-brand-100 pt-2.5">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-brand-100 pt-2">
           {activeChips.map((chip) => (
             <button
               key={chip.key}

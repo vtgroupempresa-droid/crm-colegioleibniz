@@ -8,12 +8,9 @@ import { InterestBadge } from '@/components/leads/interest-badge';
 import { cn } from '@/lib/utils/cn';
 import { formatDateTime, formatRelative } from '@/lib/utils/format';
 import { MAX_ATTEMPTS, formatSlaCountdown, slaStatusFor, type SlaStatus } from '@/lib/sla/rules';
-import { TEMPERATURE_LABELS, leadTemperature, type LeadTemperature } from '@/lib/leads/temperature';
 import { labelForField } from '@/lib/leads/validators';
 import { appointmentBadge } from './kanban-card';
 import {
-  isLeadQualificationStatus,
-  LEAD_QUALIFICATION_LABELS,
   type Lead,
   type LEAD_SOURCES,
 } from '@/types/lead';
@@ -46,13 +43,6 @@ export const SLA_DOT_LABELS: Record<SlaStatus['status'], string> = {
   warning: 'SLA vencendo (menos de 2h)',
   ok: 'SLA no prazo',
   none: 'Sem SLA definido',
-};
-
-const TEMPERATURE_TEXT: Record<LeadTemperature, string> = {
-  superquente: 'text-red-600',
-  quente: 'text-amber-600',
-  morno: 'text-sky-600',
-  frio: 'text-brand-400',
 };
 
 const APT_BADGE_TEXT: Record<'success' | 'warning' | 'danger', string> = {
@@ -149,25 +139,20 @@ export function KanbanCardCompact({
 
   const sla = slaStatusFor(nextSlaAt);
   const isClosers = pipeline === 'comercial';
-  const temp = leadTemperature(lead.tags);
-
   const aptBadge =
     isClosers && nextAppointmentAt
       ? appointmentBadge(nextAppointmentAt, appointmentConfirmed)
       : null;
 
   const sourceLabel = lead.source ? (SOURCE_LABELS[lead.source] ?? lead.source) : null;
-  const qualificationStatus = isLeadQualificationStatus(lead.qualification_status)
-    ? lead.qualification_status
-    : null;
-  const metaFirst = nextAppointmentAt
+  const primaryDetail = nextAppointmentAt
     ? `Reunião ${new Date(nextAppointmentAt).toLocaleString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
       })}`
-    : (sourceLabel ?? lead.child_name ?? 'sem origem');
+    : (lead.child_name ?? sourceLabel ?? 'Dados em atualização');
 
   function handleCardClick(e: React.MouseEvent<HTMLDivElement>) {
     if (draggedRef.current) {
@@ -196,7 +181,7 @@ export function KanbanCardCompact({
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        'group relative flex cursor-grab touch-pan-y select-none items-center gap-2 rounded-md border border-brand-100 bg-white px-2 py-1.5 text-left shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing',
+        'group relative flex min-h-14 cursor-grab touch-pan-y select-none items-center gap-2.5 rounded-lg border border-brand-100 bg-white px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-px hover:border-brand-200 hover:shadow-md active:cursor-grabbing',
         selected && 'ring-2 ring-brand-500',
         // Original invisível durante o drag — o DragOverlay pinta a cópia.
         isDragging && 'pointer-events-none opacity-0',
@@ -239,7 +224,7 @@ export function KanbanCardCompact({
       <AssigneeAvatar name={assigneeName} role={assigneeRole} size="xs" />
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-tight text-brand-700">
+        <p className="truncate text-sm font-semibold leading-tight text-brand-700">
           {lead.name}
           {missingFieldsToAdvance.length > 0 && (
             <span
@@ -260,9 +245,7 @@ export function KanbanCardCompact({
               : `Na etapa desde ${formatDateTime(stageEnteredAt)} · Entrou no CRM em ${formatDateTime(lead.created_at)}`
           }
         >
-          {metaFirst} · {reentered ? 'voltou' : 'na etapa'} {formatRelative(stageEnteredAt)}
-          {temp && <span className={TEMPERATURE_TEXT[temp]}> · {TEMPERATURE_LABELS[temp]}</span>}
-          {qualificationStatus && <span className="text-sky-700"> · {LEAD_QUALIFICATION_LABELS[qualificationStatus]}</span>}
+          {primaryDetail}{lead.child_name && sourceLabel ? ` · ${sourceLabel}` : ''} · {reentered ? 'voltou' : 'na etapa'} {formatRelative(stageEnteredAt)}
           {(sla.status === 'breached' || sla.status === 'warning') && (
             <span className={sla.status === 'breached' ? 'font-semibold text-red-600' : 'text-amber-700'}>
               {' · '}{formatSlaCountdown(nextSlaAt)}

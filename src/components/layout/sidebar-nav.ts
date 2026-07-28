@@ -23,7 +23,7 @@ export interface NavItem {
 /**
  * Itens da sidebar com filtro por cargo:
  *  - Comercial (Lorraine, Lucília, Núbia) → operação: leads, funil,
- *    calendário de visitas, chat e disparos.
+ *    calendário de visitas, chat, disparos e automações.
  *  - Admin (Dércio, Alisson) → tudo, incluindo dashboard, relatórios,
  *    integrações e configurações (/admin).
  */
@@ -37,7 +37,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   { href: '/calendario', label: 'Calendário', icon: 'calendario', roles: ['admin', 'comercial'] },
   { href: '/chat', label: 'Chat', icon: 'chat', roles: ['admin', 'comercial'] },
-  { href: '/disparos', label: 'Disparos', icon: 'disparos', roles: ['admin', 'comercial'] },
+  {
+    href: '/disparos',
+    label: 'Disparos e automações',
+    icon: 'disparos',
+    roles: ['admin', 'comercial'],
+  },
   { href: '/dashboard', label: 'Dashboard', icon: 'dashboard', roles: ['admin'] },
   { href: '/relatorios', label: 'Relatórios', icon: 'relatorios', roles: ['admin'] },
   { href: '/integracoes', label: 'Integrações', icon: 'integracoes', roles: ['admin'] },

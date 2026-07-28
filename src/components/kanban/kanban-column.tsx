@@ -39,21 +39,21 @@ export function KanbanColumn({
       className={cn(
         // Mobile: largura total, empilhado (altura por conteúdo).
         // sm+: coluna de 18rem ocupando a altura do board.
-        'flex w-full shrink-0 flex-col rounded-lg border border-brand-100 bg-brand-50/60 transition-colors sm:h-full sm:w-72',
+        'flex w-full shrink-0 flex-col rounded-xl border border-brand-100 bg-brand-50/40 transition-all sm:h-full sm:w-[18.5rem]',
         isOver && 'border-brand-500 bg-brand-100 ring-2 ring-brand-300 ring-inset',
       )}
     >
       <header
-        className="flex items-center justify-between border-b border-brand-100 px-3 py-2"
+        className="flex items-center justify-between border-b border-brand-100 px-3 py-2.5"
         title={headerHint}
       >
         <div className="flex items-center gap-2">
           <span
-            className="h-2 w-2 rounded-full"
+            className="h-2.5 w-1 rounded-full"
             style={{ backgroundColor: accentColor }}
             aria-hidden
           />
-          <h3 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-brand-600">
+          <h3 className="flex items-center gap-1 text-sm font-semibold text-brand-700">
             {title}
             {headerHint && (
               <span className="cursor-help text-brand-300" aria-hidden>
@@ -62,8 +62,8 @@ export function KanbanColumn({
             )}
           </h3>
         </div>
-        <span className="shrink-0 text-xs font-medium text-brand-400">
-          {count}
+        <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-500 shadow-sm">
+          {count.toLocaleString('pt-BR')}
           {breachedCount > 0 && (
             <span
               className="ml-1 font-semibold text-red-600"
@@ -80,10 +80,7 @@ export function KanbanColumn({
         </p>
       )}
       <SortableContext items={itemIds as string[]} strategy={verticalListSortingStrategy}>
-        <div
-          data-kanban-column-scroll
-          className="flex flex-1 flex-col gap-2 p-2 sm:overflow-y-auto"
-        >
+        <div data-kanban-column-scroll className="flex flex-1 flex-col gap-2.5 p-2.5 sm:overflow-y-auto">
           {banner}
           {children}
         </div>
