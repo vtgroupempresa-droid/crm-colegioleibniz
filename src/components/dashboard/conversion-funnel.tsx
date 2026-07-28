@@ -28,10 +28,10 @@ export function ConversionFunnel({
   ]);
 
   return (
-    <section className="rounded-lg border border-brand-100 bg-white p-5">
+    <section className="rounded-xl border border-brand-100 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-brand-600">{title}</h3>
+          <h3 className="text-base font-semibold text-brand-700">{title}</h3>
           <p className="mt-0.5 text-xs text-brand-400">{subtitle}</p>
         </div>
         <ExportButton

@@ -1,14 +1,9 @@
 import { getDashboardData } from '@/actions/dashboard-analytics';
 import { ConversionFunnel } from '@/components/dashboard/conversion-funnel';
-import { CloserTable } from '@/components/dashboard/closer-table';
 import { DashboardSubnav } from '@/components/dashboard/dashboard-subnav';
-import { EducationLevelTable } from '@/components/dashboard/education-level-table';
 import { HighInterestSection } from '@/components/dashboard/high-interest-section';
 import { KpiGrid } from '@/components/dashboard/kpi-grid';
-import { LostReasonsSection } from '@/components/dashboard/lost-reasons-section';
 import { PeriodFilter } from '@/components/dashboard/period-filter';
-import { SalesCycleTable } from '@/components/dashboard/sales-cycle-table';
-import { SdrTable } from '@/components/dashboard/sdr-table';
 import { parsePeriodParams, resolvePeriod } from '@/lib/dashboard/period';
 import { getDemoMode } from '@/lib/demo/context';
 
@@ -20,11 +15,8 @@ interface DashboardPageProps {
 }
 
 /**
- * Dashboard executivo. Filtro de período global via searchParams: a página é
- * Server Component e refaz todas as queries quando o período muda.
- *
- * Destaques pedidos na reunião com o colégio: matrículas fechadas e o
- * cruzamento "interesse alto × não fechou matrícula".
+ * Visão geral para decisão diária. Os relatórios de equipe, previsão, fontes e
+ * demais recortes ficam nas abas específicas, sem competir com a operação.
  */
 export default async function DashboardPage(props: DashboardPageProps) {
   const searchParams = await props.searchParams;
@@ -35,13 +27,14 @@ export default async function DashboardPage(props: DashboardPageProps) {
   const data = await getDashboardData({ isDemo, period });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-brand-700">Dashboard</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-400">Visão geral</p>
+          <h2 className="mt-1 text-2xl font-semibold text-brand-700">Acompanhe o que importa hoje</h2>
           <p className="mt-1 text-sm text-brand-500">
-            Visão comercial completa. {isDemo ? 'Dados de demonstração.' : 'Dados reais.'}{' '}
-            <span className="text-brand-400">· {data.periodLabel}</span>
+            Resultado, prioridades e avanço das matrículas.{' '}
+            <span className="text-brand-400">{data.periodLabel} · {isDemo ? 'Demonstração' : 'Dados reais'}</span>
           </p>
         </div>
         <PeriodFilter current={kind} from={from?.toString()} to={to?.toString()} />
@@ -50,21 +43,13 @@ export default async function DashboardPage(props: DashboardPageProps) {
       <DashboardSubnav />
 
       <KpiGrid macro={data.macro} />
-      <HighInterestSection data={data.highInterest} />
-      <ConversionFunnel stages={data.funnel} />
-      <SdrTable rows={data.sdr} />
-      <CloserTable rows={data.closers} />
-
-      <ConversionFunnel
-        stages={data.closerFunnel}
-        title="Funil de fechamento"
-        subtitle="Visitas agendadas → Compareceram → Em negociação → Matrícula fechada, com taxa de passagem por etapa."
-        filename="funil-fechamento"
-      />
-      <SalesCycleTable data={data.salesCycle} />
-      <LostReasonsSection items={data.lostReasons} />
-
-      <EducationLevelTable rows={data.educationLevels} />
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(24rem,0.85fr)] xl:items-start">
+        <HighInterestSection data={data.highInterest} />
+        <ConversionFunnel
+          stages={data.funnel}
+          subtitle="Veja em qual etapa as famílias estão avançando — e onde a equipe deve agir."
+        />
+      </div>
     </div>
   );
 }
