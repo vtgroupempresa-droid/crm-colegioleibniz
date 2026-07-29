@@ -12,6 +12,7 @@ import {
   ChevronsLeftIcon,
   ChevronsRightIcon,
   FileTextIcon,
+  HomeIcon,
   KanbanIcon,
   LogOutIcon,
   MegaphoneIcon,
@@ -31,6 +32,7 @@ const NAV_ICONS: Record<
   (props: { size?: number; className?: string }) => ReactElement
 > =
   {
+    home: HomeIcon,
     leads: UsersIcon,
     oportunidades: KanbanIcon,
     calendario: CalendarIcon,

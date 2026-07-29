@@ -5,11 +5,10 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
 
 const SECTIONS = [
-  { href: '/dashboard', label: 'Geral' },
-  { href: '/dashboard/topo-funil', label: 'Topo de Funil' },
-  { href: '/dashboard/leads-detalhado', label: 'Leads Detalhado' },
-  { href: '/dashboard/pipeline-forecast', label: 'Pipeline & Forecast' },
-  { href: '/dashboard/performance-individual', label: 'Performance Individual' },
+  { href: '/dashboard', label: 'Visão geral' },
+  { href: '/dashboard/topo-funil', label: 'Captação' },
+  { href: '/dashboard/pipeline-forecast', label: 'Vendas e previsão' },
+  { href: '/dashboard/performance-individual', label: 'Equipe' },
 ] as const;
 
 /** Só o filtro de período viaja entre as seções — filtros locais não. */
@@ -30,10 +29,12 @@ export function DashboardSubnav() {
   }
   const suffix = shared.toString() ? `?${shared.toString()}` : '';
 
-  // Mesmo visual do <Tabs> compartilhado (abas sublinhadas), mas com <Link>
-  // porque cada seção é uma rota server-rendered.
+  // Links, em vez de tabs locais, preservam o SSR de cada seção e o período.
   return (
-    <nav className="flex flex-wrap gap-1 border-b border-brand-100">
+    <nav
+      aria-label="Seções do dashboard"
+      className="-mx-1 flex gap-1 overflow-x-auto rounded-xl border border-brand-100 bg-brand-50/70 p-1"
+    >
       {SECTIONS.map((section) => {
         const active = pathname === section.href;
         return (
@@ -41,10 +42,10 @@ export function DashboardSubnav() {
             key={section.href}
             href={`${section.href}${suffix}`}
             className={cn(
-              'focus-ring -mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+              'focus-ring shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
               active
-                ? 'border-brand-700 text-brand-700'
-                : 'border-transparent text-brand-400 hover:text-brand-600',
+                ? 'bg-white text-brand-700 shadow-sm'
+                : 'text-brand-500 hover:bg-white/70 hover:text-brand-700',
             )}
           >
             {section.label}

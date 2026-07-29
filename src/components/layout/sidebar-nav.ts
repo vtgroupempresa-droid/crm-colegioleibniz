@@ -2,6 +2,7 @@ import type { UserRole } from '@/types/user';
 
 /** Chave do ícone SVG do item (mapeada para componente em sidebar.tsx). */
 export type NavIconKey =
+  | 'home'
   | 'leads'
   | 'oportunidades'
   | 'calendario'
@@ -28,6 +29,7 @@ export interface NavItem {
  *    integrações e configurações (/admin).
  */
 export const NAV_ITEMS: readonly NavItem[] = [
+  { href: '/meu-dia', label: 'Meu dia', icon: 'home', roles: ['admin', 'comercial'] },
   { href: '/leads', label: 'Todos os Leads', icon: 'leads', roles: ['admin', 'comercial'] },
   {
     href: '/oportunidades',
@@ -43,9 +45,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'disparos',
     roles: ['admin', 'comercial'],
   },
-  { href: '/dashboard', label: 'Dashboard', icon: 'dashboard', roles: ['admin'] },
-  { href: '/relatorios', label: 'Relatórios', icon: 'relatorios', roles: ['admin'] },
-  { href: '/integracoes', label: 'Integrações', icon: 'integracoes', roles: ['admin'] },
+  { href: '/dashboard', label: 'Dashboard', icon: 'dashboard', roles: ['admin', 'comercial'] },
+  { href: '/relatorios', label: 'Relatórios', icon: 'relatorios', roles: ['admin', 'comercial'] },
   { href: '/admin', label: 'Admin', icon: 'admin', roles: ['admin'] },
 ] as const;
 

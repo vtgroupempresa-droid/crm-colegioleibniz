@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { getLeadsAudit } from '@/actions/leads-detalhado';
-import { DashboardSubnav } from '@/components/dashboard/dashboard-subnav';
 import { LeadsAuditFilters } from '@/components/dashboard/leads-audit-filters';
 import { PeriodFilter } from '@/components/dashboard/period-filter';
 import { formatInt } from '@/lib/dashboard/format';
@@ -65,21 +64,28 @@ export default async function LeadsDetalhadoPage(props: PageProps) {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-brand-700">Leads Detalhado</h2>
+          <Link
+            href="/dashboard"
+            className="focus-ring inline-flex text-xs font-medium text-brand-500 hover:text-brand-700"
+          >
+            ← Voltar ao dashboard
+          </Link>
+          <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-brand-400">
+            Auditoria
+          </p>
+          <h2 className="mt-1 text-2xl font-semibold text-brand-700">Leads em detalhe</h2>
           <p className="mt-1 text-sm text-brand-500">
-            Rastreio lead a lead — {formatInt(result.total)} lead{result.total === 1 ? '' : 's'} no
-            período. <span className="text-brand-400">· {period.label}</span>
+            Consulte um contato específico quando precisar investigar a operação. {formatInt(result.total)} lead
+            {result.total === 1 ? '' : 's'} no período. <span className="text-brand-400">· {period.label}</span>
           </p>
         </div>
         <PeriodFilter current={kind} from={from?.toString()} to={to?.toString()} />
       </header>
 
-      <DashboardSubnav />
-
-      <section className="rounded-lg border border-brand-100 bg-white p-5">
+      <section className="rounded-xl border border-brand-100 bg-white p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-brand-600">
             Auditoria individual

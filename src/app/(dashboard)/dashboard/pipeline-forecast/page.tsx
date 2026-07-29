@@ -35,12 +35,13 @@ export default async function PipelineForecastPage(props: PageProps) {
   const data = await getPipelineForecastData({ isDemo, period, agingThresholdDays });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-brand-700">Pipeline &amp; Forecast</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-400">Vendas e previsão</p>
+          <h2 className="mt-1 text-2xl font-semibold text-brand-700">Saúde e previsão do funil</h2>
           <p className="mt-1 text-sm text-brand-500">
-            Retrato atual do funil, ponderado por probabilidade de fechamento.
+            Priorize o que pode fechar e identifique oportunidades que precisam de atenção.
           </p>
         </div>
         <PeriodFilter current={kind} from={from?.toString()} to={to?.toString()} />
@@ -63,9 +64,10 @@ export default async function PipelineForecastPage(props: PageProps) {
         historicalConversion={data.historicalConversion}
       />
 
-      <VelocityChart weeks={data.velocity} />
-
-      <AgingTable rows={data.aging} thresholdDays={data.agingThresholdDays} />
+      <div className="grid gap-5 2xl:grid-cols-2">
+        <VelocityChart weeks={data.velocity} />
+        <AgingTable rows={data.aging} thresholdDays={data.agingThresholdDays} />
+      </div>
     </div>
   );
 }

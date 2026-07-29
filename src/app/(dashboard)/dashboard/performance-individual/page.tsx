@@ -26,12 +26,13 @@ export default async function PerformanceIndividualPage(props: PageProps) {
   const { rows, goalMonthLabel } = await getIndividualPerformance({ isDemo, period });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-brand-700">Performance Individual</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-400">Equipe</p>
+          <h2 className="mt-1 text-2xl font-semibold text-brand-700">Resultados da equipe</h2>
           <p className="mt-1 text-sm text-brand-500">
-            Ranking e coaching — atividade, conversão e metas.{' '}
+            Leitura clara de atividade, conversão e metas para orientar a gestão.{' '}
             <span className="text-brand-400">· {period.label}</span>
           </p>
         </div>
@@ -41,7 +42,21 @@ export default async function PerformanceIndividualPage(props: PageProps) {
       <DashboardSubnav />
 
       <PerformanceRankingTable rows={rows} goalMonthLabel={goalMonthLabel} />
-      <ActivityConversionScatter rows={rows} />
+
+      <details className="group rounded-xl border border-brand-100 bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 text-sm font-semibold text-brand-700 marker:hidden">
+          <span>
+            Abrir análise de atividade × conversão
+            <span className="mt-0.5 block text-xs font-normal text-brand-400">
+              Use no coaching para comparar volume de ação e resultado por pessoa.
+            </span>
+          </span>
+          <span className="text-lg leading-none text-brand-400 transition-transform group-open:rotate-45">+</span>
+        </summary>
+        <div className="border-t border-brand-100 p-4">
+          <ActivityConversionScatter rows={rows} />
+        </div>
+      </details>
     </div>
   );
 }

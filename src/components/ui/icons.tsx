@@ -81,6 +81,16 @@ export function CalendarIcon(props: IconProps) {
   );
 }
 
+/** Casa — ponto de entrada da rotina diária. */
+export function HomeIcon(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10Z" />
+      <path d="M9 21v-6h6v6" />
+    </Stroke>
+  );
+}
+
 export function FileTextIcon(props: IconProps) {
   return (
     <Stroke {...props}>

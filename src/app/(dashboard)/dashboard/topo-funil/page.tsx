@@ -63,12 +63,13 @@ export default async function TopoFunilPage(props: PageProps) {
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-brand-700">Topo de Funil</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-400">Captação</p>
+          <h2 className="mt-1 text-2xl font-semibold text-brand-700">Leads e qualidade do atendimento</h2>
           <p className="mt-1 text-sm text-brand-500">
-            Geração e qualificação do atendimento.{' '}
+            Veja de onde os contatos chegam e se recebem o primeiro retorno no tempo certo.{' '}
             <span className="text-brand-400">· {data.periodLabel}</span>
           </p>
         </div>
@@ -77,34 +78,48 @@ export default async function TopoFunilPage(props: PageProps) {
 
       <DashboardSubnav />
 
-      <LeadsByChannel
-        buckets={data.buckets}
-        channelTotals={data.channelTotals}
-        granularity={data.granularity}
-      />
+      <div className="grid gap-5 2xl:grid-cols-2">
+        <LeadsByChannel
+          buckets={data.buckets}
+          channelTotals={data.channelTotals}
+          granularity={data.granularity}
+        />
+        <ConversionFunnel
+          stages={qualificationStages}
+          title="Qualificação dos leads"
+          subtitle="Interessados = interesse médio ou alto · Quentes = interesse alto ou visita marcada."
+          filename="funil-qualificacao"
+        />
+      </div>
 
-      <ConversionFunnel
-        stages={qualificationStages}
-        title="Funil de qualificação"
-        subtitle="Interessados = interesse médio ou alto · Quentes = interesse alto ou visita já marcada."
-        filename="funil-qualificacao"
-      />
+      <div className="grid gap-5 2xl:grid-cols-2">
+        <FirstResponseSection
+          avgMinutes={data.firstResponse.avgMinutes}
+          under5MinRate={data.firstResponse.under5MinRate}
+          rows={data.firstResponse.rows}
+        />
+        <NoShowSection
+          summary={data.appointments}
+          bySdr={data.noShowBySdr}
+          byCloser={data.noShowByCloser}
+        />
+      </div>
 
-      <NoShowSection
-        summary={data.appointments}
-        bySdr={data.noShowBySdr}
-        byCloser={data.noShowByCloser}
-      />
-
-      <ConnectionRateTables byChannel={data.connectionByChannel} bySdr={data.connectionBySdr} />
-
-      <FirstResponseSection
-        avgMinutes={data.firstResponse.avgMinutes}
-        under5MinRate={data.firstResponse.under5MinRate}
-        rows={data.firstResponse.rows}
-      />
-
-      <SdrActivityTable rows={data.sdrActivity} />
+      <details className="group rounded-xl border border-brand-100 bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 text-sm font-semibold text-brand-700 marker:hidden">
+          <span>
+            Acompanhar cadência e conexão da equipe
+            <span className="mt-0.5 block text-xs font-normal text-brand-400">
+              Taxas de contato, atividades e follow-ups por atendente.
+            </span>
+          </span>
+          <span className="text-lg leading-none text-brand-400 transition-transform group-open:rotate-45">+</span>
+        </summary>
+        <div className="grid gap-5 border-t border-brand-100 p-4 2xl:grid-cols-2">
+          <ConnectionRateTables byChannel={data.connectionByChannel} bySdr={data.connectionBySdr} />
+          <SdrActivityTable rows={data.sdrActivity} />
+        </div>
+      </details>
     </div>
   );
 }

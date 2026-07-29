@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getRelatorioLeads } from '@/actions/relatorios';
 import { getAllActivePipelineStages, listAssignableUsers } from '@/actions/leads-queries';
-import { getSession, isAdmin } from '@/lib/auth/session';
+import { getSession } from '@/lib/auth/session';
 import { getDemoMode } from '@/lib/demo/context';
 import { parsePeriodParams, resolvePeriod } from '@/lib/dashboard/period';
 import { PIPELINES } from '@/types/pipeline';
@@ -36,7 +36,6 @@ export default async function RelatoriosPage(props: PageProps) {
   const searchParams = await props.searchParams;
   const session = await getSession();
   if (!session) redirect('/login');
-  if (!isAdmin(session.role)) redirect('/');
 
   const isDemo = getDemoMode();
   const { kind, from, to } = parsePeriodParams(searchParams);
