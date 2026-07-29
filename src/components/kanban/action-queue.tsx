@@ -52,7 +52,10 @@ export function ActionQueue({ onOpenLead }: ActionQueueProps) {
   function complete(item: ActionQueueItem) {
     startTransition(async () => {
       const result = await completeTask(item.id);
-      if (!result.ok) return toast.error(result.error);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       toast.success('Ação concluída');
       reload();
     });
@@ -62,7 +65,10 @@ export function ActionQueue({ onOpenLead }: ActionQueueProps) {
     const next = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
     startTransition(async () => {
       const result = await snoozeTask(item.id, next);
-      if (!result.ok) return toast.error(result.error);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       toast.success('Lembrete adiado por 2 horas');
       reload();
     });
