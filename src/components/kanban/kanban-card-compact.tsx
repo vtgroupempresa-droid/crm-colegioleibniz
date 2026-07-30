@@ -10,6 +10,7 @@ import { formatDateTime, formatRelative } from '@/lib/utils/format';
 import { MAX_ATTEMPTS, formatSlaCountdown, slaStatusFor, type SlaStatus } from '@/lib/sla/rules';
 import { labelForField } from '@/lib/leads/validators';
 import { appointmentBadge } from './kanban-card';
+import { ChildProfileSummary } from './child-profile-summary';
 import {
   type Lead,
   type LEAD_SOURCES,
@@ -152,7 +153,7 @@ export function KanbanCardCompact({
         hour: '2-digit',
         minute: '2-digit',
       })}`
-    : (lead.child_name ?? sourceLabel ?? 'Dados em atualização');
+    : (sourceLabel ?? 'Dados em atualização');
 
   function handleCardClick(e: React.MouseEvent<HTMLDivElement>) {
     if (draggedRef.current) {
@@ -235,6 +236,7 @@ export function KanbanCardCompact({
             </span>
           )}
         </p>
+        <ChildProfileSummary lead={lead} compact />
         {/* "na etapa há X" (tempo na coluna) ≠ data de criação do lead — o rótulo
             evita ler um lead antigo reativado como se fosse recém-criado. */}
         <p
@@ -245,7 +247,7 @@ export function KanbanCardCompact({
               : `Na etapa desde ${formatDateTime(stageEnteredAt)} · Entrou no CRM em ${formatDateTime(lead.created_at)}`
           }
         >
-          {primaryDetail}{lead.child_name && sourceLabel ? ` · ${sourceLabel}` : ''} · {reentered ? 'voltou' : 'na etapa'} {formatRelative(stageEnteredAt)}
+          {primaryDetail} · {reentered ? 'voltou' : 'na etapa'} {formatRelative(stageEnteredAt)}
           {(sla.status === 'breached' || sla.status === 'warning') && (
             <span className={sla.status === 'breached' ? 'font-semibold text-red-600' : 'text-amber-700'}>
               {' · '}{formatSlaCountdown(nextSlaAt)}

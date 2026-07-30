@@ -13,11 +13,30 @@ type DbClient = SupabaseClient<Database>;
  * dos identificadores e o matching por prioridade usado no webhook unificado da Meta.
  */
 
-/** Apenas dígitos — remove +, espaços, parênteses, traços. */
+/**
+ * Identidade de telefone persistida no CRM.
+ *
+ * Além de remover a máscara, padroniza números brasileiros com DDI 55 e o
+ * nono dígito de celular. Assim, o mesmo responsável não cria outro lead ao
+ * chegar como `11999998888`, `5511999998888` ou `551199998888`.
+ */
 export function normalizePhone(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const digits = raw.replace(/\D/g, '');
-  return digits.length > 0 ? digits : null;
+  if (!digits) return null;
+
+  const national =
+    (digits.length === 12 || digits.length === 13) && digits.startsWith('55')
+      ? digits.slice(2)
+      : digits;
+
+  // Brasil: DDD (2) + telefone (8/9). Só acrescenta o 9 em números que
+  // parecem celular; nunca altera linhas fixas ou números internacionais.
+  if (national.length === 10 && /^[6-9]/.test(national.slice(2))) {
+    return `55${national.slice(0, 2)}9${national.slice(2)}`;
+  }
+  if (national.length === 10 || national.length === 11) return `55${national}`;
+  return digits;
 }
 
 /**

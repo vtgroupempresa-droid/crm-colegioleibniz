@@ -3,13 +3,14 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { AssigneeAvatar } from '@/components/ui/assignee-avatar';
-import { EducationTag, InterestBadge } from '@/components/leads/interest-badge';
+import { InterestBadge } from '@/components/leads/interest-badge';
 import { TemperatureBadge } from '@/components/leads/temperature-badge';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils/cn';
 import { formatDateTime, formatRelative } from '@/lib/utils/format';
 import { MAX_ATTEMPTS, formatSlaCountdown, slaStatusFor } from '@/lib/sla/rules';
 import { IcpWarningBadge } from './icp-warning-badge';
+import { ChildProfileSummary } from './child-profile-summary';
 import {
   isLeadQualificationStatus,
   LEAD_QUALIFICATION_LABELS,
@@ -184,11 +185,7 @@ export function KanbanCard({
           className="focus-ring -m-1 min-w-0 flex-1 cursor-pointer rounded p-1 text-left"
         >
           <p className="truncate text-sm font-semibold text-brand-700">{lead.name}</p>
-          <p className="truncate text-xs text-brand-400">
-            {lead.child_name ?? 'aluno não informado'}
-            {lead.child_age ? ` · ${lead.child_age} anos` : ''}
-          </p>
-          <EducationTag lead={lead} />
+          <ChildProfileSummary lead={lead} />
         </button>
         <div className="flex shrink-0 items-center gap-0.5">
           {onMove && (
