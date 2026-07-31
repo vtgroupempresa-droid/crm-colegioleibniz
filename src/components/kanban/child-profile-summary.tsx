@@ -32,16 +32,32 @@ export function ChildProfileSummary({
   if (compact) {
     const [child, age, education, schoolYear] = details;
     return (
-      <span className={cn('mt-1 block min-w-0 text-[10px] leading-snug text-brand-500', className)}>
-        <span className="block break-words">
-          <span className="text-brand-400">{child[0]}: </span>
-          <span className="font-medium text-brand-600">{child[1]}</span>
+      <span
+        className={cn(
+          'mt-2 block min-w-0 overflow-hidden rounded-lg border border-brand-100 bg-brand-50/70 px-2.5 py-2 text-left',
+          className,
+        )}
+      >
+        <span className="block min-w-0">
+          <span className="block text-[10px] font-medium uppercase tracking-wide text-brand-400">
+            {child[0]}
+          </span>
+          <span
+            className="mt-0.5 block truncate text-xs font-semibold text-brand-700"
+            title={`${child[0]}: ${child[1]}`}
+          >
+            {child[1]}
+          </span>
         </span>
-        <span className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-brand-500">
+        <span className="mt-2 grid min-w-0 grid-cols-[0.8fr_1.35fr_1fr] gap-2 border-t border-brand-100 pt-1.5">
           {[age, education, schoolYear].map(([label, value]) => (
-            <span key={label} className="break-words" title={`${label}: ${value}`}>
-              <span className="text-brand-400">{label}: </span>
-              <span className="font-medium text-brand-600">{value}</span>
+            <span key={label} className="min-w-0" title={`${label}: ${value}`}>
+              <span className="block min-h-5 break-words text-[9px] font-medium uppercase leading-3 tracking-wide text-brand-400 [overflow-wrap:anywhere]">
+                {label === 'Idade do filho' ? 'Idade' : label}
+              </span>
+              <span className="mt-0.5 block max-h-7 overflow-hidden break-words text-[11px] font-semibold leading-3.5 text-brand-600 [overflow-wrap:anywhere]">
+                {value}
+              </span>
             </span>
           ))}
         </span>
@@ -52,16 +68,33 @@ export function ChildProfileSummary({
   return (
     <span
       className={cn(
-        'mt-1.5 grid min-w-0 grid-cols-2 gap-1.5 text-left text-[11px] leading-tight',
+        'mt-2 block min-w-0 overflow-hidden rounded-lg border border-brand-100 bg-brand-50/70 px-2.5 py-2 text-left',
         className,
       )}
     >
-      {details.map(([label, value]) => (
-        <span key={label} className="min-w-0 rounded-md bg-brand-50 px-1.5 py-1 text-brand-500" title={`${label}: ${value}`}>
-          <span className="block text-[10px] text-brand-400">{label}</span>
-          <span className="block break-words font-medium text-brand-600">{value}</span>
+      <span className="block min-w-0">
+        <span className="block text-[10px] font-medium uppercase tracking-wide text-brand-400">
+          {details[0][0]}
         </span>
-      ))}
+        <span
+          className="mt-0.5 block break-words text-xs font-semibold leading-snug text-brand-700 [overflow-wrap:anywhere]"
+          title={`${details[0][0]}: ${details[0][1]}`}
+        >
+          {details[0][1]}
+        </span>
+      </span>
+      <span className="mt-2 grid min-w-0 grid-cols-[0.8fr_1.35fr_1fr] gap-2 border-t border-brand-100 pt-1.5">
+        {details.slice(1).map(([label, value]) => (
+          <span key={label} className="min-w-0" title={`${label}: ${value}`}>
+            <span className="block min-h-5 break-words text-[9px] font-medium uppercase leading-3 tracking-wide text-brand-400 [overflow-wrap:anywhere]">
+              {label === 'Idade do filho' ? 'Idade' : label}
+            </span>
+            <span className="mt-0.5 block break-words text-[11px] font-semibold leading-tight text-brand-600 [overflow-wrap:anywhere]">
+              {value}
+            </span>
+          </span>
+        ))}
+      </span>
     </span>
   );
 }

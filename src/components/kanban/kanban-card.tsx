@@ -167,7 +167,7 @@ export function KanbanCard({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       onClick={handleCardClick}
       className={cn(
-        'group flex cursor-pointer flex-col gap-2 rounded-md border border-brand-100 bg-white p-3 text-left shadow-sm transition-shadow hover:border-brand-200 hover:shadow-md',
+        'group flex min-w-0 cursor-pointer flex-col gap-2.5 overflow-hidden rounded-xl border border-brand-100 bg-white p-3 text-left shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-px hover:border-brand-300 hover:shadow-md',
         borderClass,
         selected && 'ring-2 ring-brand-500',
         // Esconde o card original enquanto está sendo arrastado — o DragOverlay
@@ -177,86 +177,100 @@ export function KanbanCard({
         groupDragging && selected && !isDragging && 'opacity-40',
       )}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex min-w-0 items-start gap-2.5">
         <input
           type="checkbox"
           checked={selected}
           onChange={() => onToggleSelect(lead.id)}
           aria-label={`Selecionar ${lead.name}`}
-          className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-brand-600"
+          className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brand-600"
         />
+        <div className="min-w-0 flex-1">
+          <p className="max-h-10 overflow-hidden break-words text-sm font-semibold leading-5 text-brand-800 [overflow-wrap:anywhere]">
+            {lead.name}
+          </p>
+          <p className="mt-0.5 text-[11px] text-brand-400">Família responsável</p>
+        </div>
+        <AssigneeAvatar name={assigneeName} role={assigneeRole} size="xs" />
+      </div>
+
+      <ChildProfileSummary lead={lead} />
+
+      <div className="flex min-w-0 items-stretch gap-1.5">
         <button
           type="button"
           onClick={() => onOpen(lead.id)}
-          className="focus-ring -m-1 min-w-0 flex-1 cursor-pointer rounded p-1 text-left"
+          className="focus-ring flex min-h-10 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-800"
         >
-          <p className="truncate text-sm font-semibold text-brand-700">{lead.name}</p>
-          <ChildProfileSummary lead={lead} />
+          Ver detalhes <span aria-hidden>→</span>
         </button>
-        <div className="flex shrink-0 items-center gap-0.5">
-          {onMove && (
-            <button
-              type="button"
-              aria-label="Mover para outra etapa"
-              title="Mover para outra etapa"
-              onClick={() => onMove(lead.id)}
-              className="focus-ring rounded p-1 text-brand-300 hover:bg-brand-100 hover:text-brand-600"
-            >
-              →
-            </button>
-          )}
-          {onOpenChat && (
-            <button
-              type="button"
-              aria-label="Abrir chat"
-              title="Abrir chat"
-              onClick={() => onOpenChat(lead.id)}
-              className="focus-ring rounded p-1 text-brand-300 hover:bg-brand-100 hover:text-brand-600"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-            </button>
-          )}
-          {lead.phone && (
-            <a
-              href={`tel:${lead.phone}`}
-              aria-label="Ligar"
-              title="Ligar"
-              onClick={(e) => e.stopPropagation()}
-              className="focus-ring rounded p-1 text-brand-300 hover:bg-brand-100 hover:text-brand-600"
-            >
-              📞
-            </a>
-          )}
+        {onMove && (
           <button
             type="button"
-            aria-label="Arrastar"
-            className="focus-ring cursor-grab rounded p-1 text-brand-300 hover:bg-brand-100 active:cursor-grabbing"
-            {...attributes}
-            {...listeners}
+            aria-label="Mover para outra etapa"
+            title="Mover para outra etapa"
+            onClick={() => onMove(lead.id)}
+            className="focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-white text-brand-600 hover:bg-brand-50"
           >
-            ⋮⋮
+            →
           </button>
-        </div>
+        )}
+        {onOpenChat && (
+          <button
+            type="button"
+            aria-label="Abrir conversa"
+            title="Abrir conversa"
+            onClick={() => onOpenChat(lead.id)}
+            className="focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-white text-brand-600 hover:bg-brand-50"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
+        )}
+        {lead.phone && (
+          <a
+            href={`tel:${lead.phone}`}
+            aria-label="Ligar"
+            title="Ligar"
+            onClick={(e) => e.stopPropagation()}
+            className="focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-white text-sm text-brand-600 hover:bg-brand-50"
+          >
+            📞
+          </a>
+        )}
+        <button
+          type="button"
+          aria-label="Arrastar para outra etapa"
+          title="Arrastar para outra etapa"
+          className="focus-ring flex h-10 w-10 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg border border-brand-200 bg-white text-brand-500 hover:bg-brand-50 active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          ⋮⋮
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
         <InterestBadge lead={lead} />
         <TemperatureBadge tags={lead.tags} />
         {qualificationStatus && (
-          <Badge tone="info" title={lead.qualification_note ?? LEAD_QUALIFICATION_LABELS[qualificationStatus]}>
+          <Badge
+            tone="info"
+            className="max-w-full whitespace-normal break-words"
+            title={lead.qualification_note ?? LEAD_QUALIFICATION_LABELS[qualificationStatus]}
+          >
             ✨ {LEAD_QUALIFICATION_LABELS[qualificationStatus]}
           </Badge>
         )}
@@ -268,7 +282,9 @@ export function KanbanCard({
         )}
         {lead.is_no_show && <Badge tone="danger">NO-SHOW</Badge>}
         {lead.stage === 'perdido' && lead.lost_reason && (
-          <Badge tone="danger">Lost: {LOST_REASON_LABELS[lead.lost_reason]}</Badge>
+          <Badge tone="danger" className="max-w-full whitespace-normal break-words">
+            Lost: {LOST_REASON_LABELS[lead.lost_reason]}
+          </Badge>
         )}
         <IcpWarningBadge missingFields={missingFieldsToAdvance} />
       </div>

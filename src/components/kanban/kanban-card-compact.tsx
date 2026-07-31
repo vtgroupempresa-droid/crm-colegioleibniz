@@ -165,199 +165,141 @@ export function KanbanCardCompact({
     onOpen(lead.id);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
-      e.preventDefault();
-      onOpen(lead.id);
-    }
-  }
-
   const dotTitle = SLA_DOT_LABELS[sla.status];
+  const hasQuickActions = Boolean(
+    (onQuickAttempt && attemptsCount < MAX_ATTEMPTS) ||
+      onRegisterContact ||
+      (isClosers && lead.stage === 'agendamentos' && nextAppointmentId && onRegisterCall) ||
+      (isClosers && lead.stage !== 'agendamentos' && (onCloseDeal || onMarkLost)),
+  );
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      aria-label={lead.name}
       onClick={handleCardClick}
-      onKeyDown={handleKeyDown}
       className={cn(
-        'group relative flex min-h-14 cursor-pointer touch-pan-y select-none items-center gap-2.5 rounded-lg border border-brand-100 bg-white px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-px hover:border-brand-200 hover:shadow-md',
+        'group relative min-w-0 cursor-pointer touch-pan-y overflow-hidden rounded-xl border border-brand-100 bg-white p-3 text-left shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-px hover:border-brand-300 hover:shadow-md',
         selected && 'ring-2 ring-brand-500',
         // Original invisível durante o drag — o DragOverlay pinta a cópia.
         isDragging && 'pointer-events-none opacity-0',
         groupDragging && selected && !isDragging && 'opacity-40',
       )}
     >
-      {/* Slot esquerdo (desktop): dot de SLA que vira checkbox no hover/seleção. */}
-      <span className="relative flex h-4 w-4 shrink-0 items-center justify-center [@media(hover:none)]:hidden">
-        <span
-          className={cn(
-            'h-2 w-2 rounded-full',
-            SLA_DOT_CLASSES[sla.status],
-            selected && 'hidden',
-            'group-hover:hidden',
-          )}
-          title={dotTitle}
-          aria-hidden
-        />
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onToggleSelect(lead.id)}
-          aria-label={`Selecionar ${lead.name}`}
-          className={cn(
-            'absolute h-4 w-4 cursor-pointer accent-brand-600',
-            selected ? 'block' : 'hidden group-hover:block',
-          )}
-        />
-      </span>
-      {/* Touch: dot sempre visível (o checkbox fica no cluster de ações). */}
-      <span
-        className={cn(
-          'hidden h-2 w-2 shrink-0 rounded-full [@media(hover:none)]:block',
-          SLA_DOT_CLASSES[sla.status],
-        )}
-        title={dotTitle}
-        aria-hidden
-      />
+      <div className="flex min-w-0 items-start gap-2.5">
+        <div className="flex shrink-0 flex-col items-center gap-1.5 pt-0.5">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(lead.id)}
+            aria-label={`Selecionar ${lead.name}`}
+            className="h-4 w-4 cursor-pointer accent-brand-600"
+          />
+          <span
+            className={cn('h-2 w-2 rounded-full', SLA_DOT_CLASSES[sla.status])}
+            title={dotTitle}
+            aria-hidden
+          />
+        </div>
 
-      <AssigneeAvatar name={assigneeName} role={assigneeRole} size="xs" />
+        <AssigneeAvatar name={assigneeName} role={assigneeRole} size="xs" />
 
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold leading-tight text-brand-700">
-          {lead.name}
-          {missingFieldsToAdvance.length > 0 && (
-            <span
-              className="ml-1 font-semibold text-amber-600"
-              title={`ICP incompleto: ${missingFieldsToAdvance.map(labelForField).join(', ')}`}
-            >
-              !
-            </span>
-          )}
-        </p>
-        <ChildProfileSummary lead={lead} compact />
-        {/* "na etapa há X" (tempo na coluna) ≠ data de criação do lead — o rótulo
-            evita ler um lead antigo reativado como se fosse recém-criado. */}
-        <p
-          className="truncate text-[11px] leading-tight text-brand-400"
-          title={
-            reentered
-              ? `Voltou (reentrada) em ${formatDateTime(stageEnteredAt)} · Primeira entrada no CRM: ${formatDateTime(lead.created_at)}`
-              : `Na etapa desde ${formatDateTime(stageEnteredAt)} · Entrou no CRM em ${formatDateTime(lead.created_at)}`
-          }
-        >
-          {primaryDetail} · {reentered ? 'voltou' : 'na etapa'} {formatRelative(stageEnteredAt)}
-          {(sla.status === 'breached' || sla.status === 'warning') && (
-            <span className={sla.status === 'breached' ? 'font-semibold text-red-600' : 'text-amber-700'}>
-              {' · '}{formatSlaCountdown(nextSlaAt)}
-            </span>
-          )}
-          {lead.is_no_show && <span className="font-semibold text-red-600"> · NO-SHOW</span>}
-          {aptBadge && <span className={APT_BADGE_TEXT[aptBadge.tone]}> · {aptBadge.label}</span>}
-        </p>
+        <div className="min-w-0 flex-1">
+          <p className="max-h-10 overflow-hidden break-words text-sm font-semibold leading-5 text-brand-800 [overflow-wrap:anywhere]">
+            {lead.name}
+            {missingFieldsToAdvance.length > 0 && (
+              <span
+                className="ml-1 font-semibold text-amber-600"
+                title={`Cadastro incompleto: ${missingFieldsToAdvance.map(labelForField).join(', ')}`}
+              >
+                !
+              </span>
+            )}
+          </p>
+          <p
+            className="mt-0.5 truncate text-[11px] leading-4 text-brand-400"
+            title={
+              reentered
+                ? `Voltou (reentrada) em ${formatDateTime(stageEnteredAt)} · Primeira entrada no CRM: ${formatDateTime(lead.created_at)}`
+                : `Na etapa desde ${formatDateTime(stageEnteredAt)} · Entrou no CRM em ${formatDateTime(lead.created_at)}`
+            }
+          >
+            {primaryDetail} · {reentered ? 'voltou' : 'na etapa'} {formatRelative(stageEnteredAt)}
+          </p>
+        </div>
+
       </div>
 
-      <InterestBadge lead={lead} size="xs" />
+      {(lead.interest_level ||
+        sla.status === 'breached' ||
+        sla.status === 'warning' ||
+        lead.is_no_show ||
+        aptBadge) && (
+        <div className="mt-2 flex min-w-0 flex-wrap gap-1.5 text-[10px]">
+          <InterestBadge lead={lead} size="xs" className="max-w-full" />
+          {(sla.status === 'breached' || sla.status === 'warning') && (
+            <span
+              className={cn(
+                'max-w-full truncate rounded-full px-2 py-1 font-semibold',
+                sla.status === 'breached'
+                  ? 'bg-red-50 text-red-700'
+                  : 'bg-amber-50 text-amber-800',
+              )}
+            >
+              {formatSlaCountdown(nextSlaAt)}
+            </span>
+          )}
+          {lead.is_no_show && (
+            <span className="rounded-full bg-red-50 px-2 py-1 font-semibold text-red-700">
+              NO-SHOW
+            </span>
+          )}
+          {aptBadge && (
+            <span
+              className={cn(
+                'max-w-full truncate rounded-full bg-brand-50 px-2 py-1',
+                APT_BADGE_TEXT[aptBadge.tone],
+              )}
+            >
+              {aptBadge.label}
+            </span>
+          )}
+        </div>
+      )}
 
-      {/* Ações rápidas: overlay no hover (desktop) / inline sempre visível (touch). */}
-      <div
-        className={cn(
-          'absolute inset-y-0 right-1 z-10 flex items-center gap-0.5 rounded-md bg-white/95 pl-1',
-          'pointer-events-none opacity-0 transition-opacity',
-          'group-hover:pointer-events-auto group-hover:opacity-100',
-          'group-focus-within:pointer-events-auto group-focus-within:opacity-100',
-          '[@media(hover:none)]:static [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:bg-transparent [@media(hover:none)]:pl-0 [@media(hover:none)]:opacity-100',
-        )}
-      >
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onToggleSelect(lead.id)}
-          aria-label={`Selecionar ${lead.name}`}
-          className="hidden h-4 w-4 cursor-pointer accent-brand-600 [@media(hover:none)]:block"
-        />
+      <ChildProfileSummary lead={lead} compact />
+
+      <div className="mt-2.5 flex min-w-0 items-stretch gap-1.5 border-t border-brand-100 pt-2.5">
+        <button
+          type="button"
+          onClick={() => onOpen(lead.id)}
+          className="focus-ring flex min-h-10 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-800"
+        >
+          Ver detalhes <span aria-hidden>→</span>
+        </button>
         {onMove && (
           <button
             type="button"
             aria-label="Mover para outra etapa"
             title="Mover para outra etapa"
             onClick={() => onMove(lead.id)}
-            className="focus-ring rounded p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-700"
+            className="focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-white text-brand-600 hover:bg-brand-50"
           >
             →
-          </button>
-        )}
-        <button
-          type="button"
-          aria-label="Arrastar para outra etapa"
-          title="Arrastar para outra etapa"
-          className="focus-ring cursor-grab rounded px-1 text-brand-400 hover:bg-brand-100 hover:text-brand-700 active:cursor-grabbing"
-          {...attributes}
-          {...listeners}
-        >
-          ⋮⋮
-        </button>
-        {onQuickAttempt && attemptsCount < MAX_ATTEMPTS && (
-          <button
-            type="button"
-            aria-label="Registrar tentativa"
-            title={`Registrar tentativa (${Math.min(attemptsCount, MAX_ATTEMPTS)}/${MAX_ATTEMPTS})`}
-            onClick={() => onQuickAttempt(lead.id)}
-            className="focus-ring rounded p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-700"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-            </svg>
-          </button>
-        )}
-        {onRegisterContact && (
-          <button
-            type="button"
-            aria-label="Registrar contato"
-            title="Registrar contato"
-            onClick={() => onRegisterContact(lead.id)}
-            className="focus-ring rounded p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-700"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M20 6 9 17l-5-5" />
-            </svg>
           </button>
         )}
         {onOpenChat && (
           <button
             type="button"
-            aria-label="Abrir chat"
-            title="Abrir chat"
+            aria-label="Abrir conversa"
+            title="Abrir conversa"
             onClick={() => onOpenChat(lead.id)}
-            className="focus-ring rounded p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-700"
+            className="focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-white text-brand-600 hover:bg-brand-50"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="15"
-              height="15"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -370,86 +312,74 @@ export function KanbanCardCompact({
             </svg>
           </button>
         )}
-        {/* Ações essenciais do CLOSER (mesma regra do card confortável): registrar
-            call na coluna de agendamentos; fechar venda/perdido nas demais. */}
-        {isClosers && lead.stage === 'agendamentos' && nextAppointmentId && onRegisterCall && (
-          <button
-            type="button"
-            aria-label="Registrar call"
-            title="Registrar call"
-            onClick={() => onRegisterCall(lead.id, nextAppointmentId)}
-            className="focus-ring rounded p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-700"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M15 5h6" />
-              <path d="M18 2v6" />
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-            </svg>
-          </button>
-        )}
-        {isClosers && lead.stage !== 'agendamentos' && onCloseDeal && (
-          <button
-            type="button"
-            aria-label="Fechar venda"
-            title="Fechar venda"
-            onClick={() => onCloseDeal(lead.id)}
-            className="focus-ring rounded p-1 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="12" x2="12" y1="2" y2="22" />
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
-          </button>
-        )}
-        {isClosers && lead.stage !== 'agendamentos' && onMarkLost && (
-          <button
-            type="button"
-            aria-label="Marcar perdido"
-            title="Marcar perdido"
-            onClick={() => onMarkLost(lead.id)}
-            className="focus-ring rounded p-1 text-brand-400 hover:bg-red-50 hover:text-red-600"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <path d="m15 9-6 6" />
-              <path d="m9 9 6 6" />
-            </svg>
-          </button>
-        )}
+        <button
+          type="button"
+          aria-label="Arrastar para outra etapa"
+          title="Arrastar para outra etapa"
+          className="focus-ring flex h-10 w-10 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg border border-brand-200 bg-white text-brand-500 hover:bg-brand-50 hover:text-brand-700 active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          ⋮⋮
+        </button>
       </div>
+
+      {hasQuickActions && (
+        <div className="mt-1.5 grid min-w-0 grid-cols-2 gap-1.5">
+          {onQuickAttempt && attemptsCount < MAX_ATTEMPTS && (
+            <button
+              type="button"
+              title={`Registrar tentativa (${Math.min(attemptsCount, MAX_ATTEMPTS)}/${MAX_ATTEMPTS})`}
+              onClick={() => onQuickAttempt(lead.id)}
+              className="focus-ring min-h-9 min-w-0 truncate rounded-lg border border-brand-200 bg-brand-50 px-2 text-[11px] font-semibold text-brand-700 hover:bg-brand-100"
+            >
+              Tentativa {Math.min(attemptsCount, MAX_ATTEMPTS)}/{MAX_ATTEMPTS}
+            </button>
+          )}
+          {onRegisterContact && (
+            <button
+              type="button"
+              title="Registrar contato"
+              onClick={() => onRegisterContact(lead.id)}
+              className="focus-ring min-h-9 min-w-0 truncate rounded-lg border border-brand-200 bg-brand-50 px-2 text-[11px] font-semibold text-brand-700 hover:bg-brand-100"
+            >
+              Contato
+            </button>
+          )}
+          {isClosers && lead.stage === 'agendamentos' && nextAppointmentId && onRegisterCall && (
+            <button
+              type="button"
+              title="Registrar resultado da visita"
+              onClick={() => onRegisterCall(lead.id, nextAppointmentId)}
+              className="focus-ring col-span-2 min-h-9 min-w-0 truncate rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
+            >
+              Registrar resultado da visita
+            </button>
+          )}
+          {isClosers && lead.stage !== 'agendamentos' && onCloseDeal && (
+            <button
+              type="button"
+              aria-label="Fechar venda"
+              title="Fechar venda"
+              onClick={() => onCloseDeal(lead.id)}
+              className="focus-ring min-h-9 min-w-0 truncate rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
+            >
+              Fechar matrícula
+            </button>
+          )}
+          {isClosers && lead.stage !== 'agendamentos' && onMarkLost && (
+            <button
+              type="button"
+              aria-label="Marcar perdido"
+              title="Marcar perdido"
+              onClick={() => onMarkLost(lead.id)}
+              className="focus-ring min-h-9 min-w-0 truncate rounded-lg border border-brand-200 bg-white px-2 text-[11px] font-semibold text-brand-600 hover:bg-red-50 hover:text-red-700"
+            >
+              Marcar perdido
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
