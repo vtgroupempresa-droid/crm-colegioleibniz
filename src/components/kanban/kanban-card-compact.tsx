@@ -182,7 +182,7 @@ export function KanbanCardCompact({
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        'group relative flex min-h-14 cursor-grab touch-pan-y select-none items-center gap-2.5 rounded-lg border border-brand-100 bg-white px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-px hover:border-brand-200 hover:shadow-md active:cursor-grabbing',
+        'group relative flex min-h-14 cursor-pointer touch-pan-y select-none items-center gap-2.5 rounded-lg border border-brand-100 bg-white px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-px hover:border-brand-200 hover:shadow-md',
         selected && 'ring-2 ring-brand-500',
         // Original invisível durante o drag — o DragOverlay pinta a cópia.
         isDragging && 'pointer-events-none opacity-0',

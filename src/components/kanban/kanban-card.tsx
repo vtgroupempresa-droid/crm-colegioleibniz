@@ -156,12 +156,18 @@ export function KanbanCard({
     ? lead.qualification_status
     : null;
 
+  function handleCardClick(event: React.MouseEvent<HTMLDivElement>) {
+    if ((event.target as HTMLElement).closest('button, input, a, label')) return;
+    onOpen(lead.id);
+  }
+
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
+      onClick={handleCardClick}
       className={cn(
-        'group flex flex-col gap-2 rounded-md border border-brand-100 bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md',
+        'group flex cursor-pointer flex-col gap-2 rounded-md border border-brand-100 bg-white p-3 text-left shadow-sm transition-shadow hover:border-brand-200 hover:shadow-md',
         borderClass,
         selected && 'ring-2 ring-brand-500',
         // Esconde o card original enquanto está sendo arrastado — o DragOverlay
