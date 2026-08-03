@@ -61,6 +61,13 @@ const createLeadSchema = z.object({
   with_child: z.boolean().nullable().optional(),
   child_name: z.string().nullable().optional(),
   child_age: z.number().int().min(0).max(25).nullable().optional(),
+  monthly_budget: z
+    .number()
+    .finite()
+    .min(0, 'O orçamento não pode ser negativo')
+    .max(9_999_999_999.99, 'Orçamento acima do limite permitido')
+    .nullable()
+    .optional(),
   education_level: enumOrNull(EDUCATION_LEVELS as unknown as [string, ...string[]]),
   school_year: z.string().nullable().optional(),
   // Atribuição
@@ -202,6 +209,7 @@ export async function createLead(
     with_child: clean.with_child ?? null,
     child_name: clean.child_name ?? null,
     child_age: clean.child_age ?? null,
+    monthly_budget: clean.monthly_budget ?? null,
     education_level: (clean.education_level ?? null) as Lead['education_level'],
     school_year: clean.school_year ?? null,
     source: clean.source as Lead['source'],

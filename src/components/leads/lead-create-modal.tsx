@@ -38,6 +38,7 @@ const INITIAL = {
   with_child: false,
   child_name: '',
   child_age: '',
+  monthly_budget: '',
   education_level: '' as EducationLevel | '',
   school_year: '',
 };
@@ -72,6 +73,7 @@ export function LeadCreateModal({ open, onClose }: LeadCreateModalProps) {
       with_child: form.with_child,
       child_name: form.child_name || null,
       child_age: form.child_age ? Number(form.child_age) : null,
+      monthly_budget: form.monthly_budget ? Number(form.monthly_budget) : null,
       education_level: form.education_level || null,
       school_year: form.school_year || null,
     };
@@ -149,6 +151,16 @@ export function LeadCreateModal({ open, onClose }: LeadCreateModalProps) {
           />
           <Input label="Cidade" value={form.city} onChange={(e) => set('city', e.target.value)} />
           <Input label="Estado" value={form.state} onChange={(e) => set('state', e.target.value)} />
+          <Input
+            label="Orçamento mensal da família (R$)"
+            type="number"
+            min={0}
+            step="0.01"
+            inputMode="decimal"
+            value={form.monthly_budget}
+            onChange={(e) => set('monthly_budget', e.target.value)}
+            placeholder="Ex.: 2500"
+          />
         </div>
 
         <fieldset className="rounded-md border border-brand-100 p-3">

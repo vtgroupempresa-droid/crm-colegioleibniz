@@ -834,6 +834,7 @@ export type Database = {
           last_entered_at: string
           lost_reason: Database["public"]["Enums"]["lost_reason"] | null
           merged_into: string | null
+          monthly_budget: number | null
           meta_ad_id: string | null
           meta_ad_name: string | null
           meta_adset_id: string | null
@@ -891,6 +892,7 @@ export type Database = {
           last_entered_at?: string
           lost_reason?: Database["public"]["Enums"]["lost_reason"] | null
           merged_into?: string | null
+          monthly_budget?: number | null
           meta_ad_id?: string | null
           meta_ad_name?: string | null
           meta_adset_id?: string | null
@@ -948,6 +950,7 @@ export type Database = {
           last_entered_at?: string
           lost_reason?: Database["public"]["Enums"]["lost_reason"] | null
           merged_into?: string | null
+          monthly_budget?: number | null
           meta_ad_id?: string | null
           meta_ad_name?: string | null
           meta_adset_id?: string | null

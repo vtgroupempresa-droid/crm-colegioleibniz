@@ -87,6 +87,7 @@ export function LeadDataTab({
     with_child: lead.with_child ?? false,
     child_name: lead.child_name ?? '',
     child_age: lead.child_age?.toString() ?? '',
+    monthly_budget: lead.monthly_budget?.toString() ?? '',
     education_level: lead.education_level ?? '',
     school_year: lead.school_year ?? '',
     source: lead.source ?? '',
@@ -115,6 +116,7 @@ export function LeadDataTab({
       with_child: form.with_child,
       child_name: form.child_name || null,
       child_age: form.child_age ? Number(form.child_age) : null,
+      monthly_budget: form.monthly_budget ? Number(form.monthly_budget) : null,
       education_level: form.education_level || null,
       school_year: form.school_year || null,
       source: form.source || undefined,
@@ -177,6 +179,16 @@ export function LeadDataTab({
             </option>
           ))}
         </Select>
+        <Input
+          label="Orçamento mensal da família (R$)"
+          type="number"
+          min={0}
+          step="0.01"
+          inputMode="decimal"
+          value={form.monthly_budget}
+          onChange={(e) => set('monthly_budget', e.target.value)}
+          placeholder="Ex.: 2500"
+        />
       </div>
 
       <fieldset className="rounded-md border border-brand-100 bg-white p-3">
