@@ -146,6 +146,7 @@ export function KanbanCardCompact({
       : null;
 
   const sourceLabel = lead.source ? (SOURCE_LABELS[lead.source] ?? lead.source) : null;
+  const isNewLead = lead.stage === 'novo_lead';
   const primaryDetail = nextAppointmentAt
     ? `Reunião ${new Date(nextAppointmentAt).toLocaleString('pt-BR', {
         day: '2-digit',
@@ -165,6 +166,13 @@ export function KanbanCardCompact({
     onOpen(lead.id);
   }
 
+  function handleCardKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    onOpen(lead.id);
+  }
+
   const dotTitle = SLA_DOT_LABELS[sla.status];
   const hasQuickActions = Boolean(
     (onQuickAttempt && attemptsCount < MAX_ATTEMPTS) ||
@@ -178,14 +186,32 @@ export function KanbanCardCompact({
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`Abrir informações de ${lead.name}`}
       className={cn(
-        'group relative min-w-0 cursor-pointer touch-pan-y overflow-hidden rounded-xl border border-brand-100 bg-white p-3 text-left shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-px hover:border-brand-300 hover:shadow-md',
+        'focus-ring group relative min-w-0 cursor-pointer touch-pan-y overflow-hidden rounded-xl border border-brand-100 bg-white p-3 text-left shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-px hover:border-brand-300 hover:shadow-md',
+        isNewLead &&
+          'border-brand-200 bg-gradient-to-br from-white via-white to-brand-50/80 shadow-[0_8px_24px_-18px_rgba(115,35,51,0.75)]',
         selected && 'ring-2 ring-brand-500',
         // Original invisível durante o drag — o DragOverlay pinta a cópia.
         isDragging && 'pointer-events-none opacity-0',
         groupDragging && selected && !isDragging && 'opacity-40',
       )}
     >
+      {isNewLead && (
+        <div className="mb-2.5 flex min-w-0 items-center justify-between gap-2">
+          <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-brand-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-700">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-600" aria-hidden />
+            Novo contato
+          </span>
+          <span className="shrink-0 text-[10px] font-medium text-brand-400">
+            Abrir ficha →
+          </span>
+        </div>
+      )}
+
       <div className="flex min-w-0 items-start gap-2.5">
         <div className="flex shrink-0 flex-col items-center gap-1.5 pt-0.5">
           <input
@@ -205,7 +231,7 @@ export function KanbanCardCompact({
         <AssigneeAvatar name={assigneeName} role={assigneeRole} size="xs" />
 
         <div className="min-w-0 flex-1">
-          <p className="max-h-10 overflow-hidden break-words text-sm font-semibold leading-5 text-brand-800 [overflow-wrap:anywhere]">
+          <p className="break-words text-[15px] font-semibold leading-5 text-brand-800 [overflow-wrap:anywhere]">
             {lead.name}
             {missingFieldsToAdvance.length > 0 && (
               <span

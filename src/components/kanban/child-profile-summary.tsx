@@ -43,7 +43,7 @@ export function ChildProfileSummary({
             {child[0]}
           </span>
           <span
-            className="mt-0.5 block truncate text-xs font-semibold text-brand-700"
+            className="mt-0.5 block break-words text-xs font-semibold leading-snug text-brand-700 [overflow-wrap:anywhere]"
             title={`${child[0]}: ${child[1]}`}
           >
             {child[1]}

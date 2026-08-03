@@ -155,9 +155,17 @@ export function KanbanCard({
   const qualificationStatus = isLeadQualificationStatus(lead.qualification_status)
     ? lead.qualification_status
     : null;
+  const isNewLead = lead.stage === 'novo_lead';
 
   function handleCardClick(event: React.MouseEvent<HTMLDivElement>) {
     if ((event.target as HTMLElement).closest('button, input, a, label')) return;
+    onOpen(lead.id);
+  }
+
+  function handleCardKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
     onOpen(lead.id);
   }
 
@@ -166,8 +174,14 @@ export function KanbanCard({
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`Abrir informações de ${lead.name}`}
       className={cn(
-        'group flex min-w-0 cursor-pointer flex-col gap-2.5 overflow-hidden rounded-xl border border-brand-100 bg-white p-3 text-left shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-px hover:border-brand-300 hover:shadow-md',
+        'focus-ring group flex min-w-0 cursor-pointer flex-col gap-2.5 overflow-hidden rounded-xl border border-brand-100 bg-white p-3 text-left shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-px hover:border-brand-300 hover:shadow-md',
+        isNewLead &&
+          'border-brand-200 bg-gradient-to-br from-white via-white to-brand-50/80 shadow-[0_8px_24px_-18px_rgba(115,35,51,0.75)]',
         borderClass,
         selected && 'ring-2 ring-brand-500',
         // Esconde o card original enquanto está sendo arrastado — o DragOverlay
@@ -177,6 +191,18 @@ export function KanbanCard({
         groupDragging && selected && !isDragging && 'opacity-40',
       )}
     >
+      {isNewLead && (
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-brand-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-700">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-600" aria-hidden />
+            Novo contato
+          </span>
+          <span className="shrink-0 text-[10px] font-medium text-brand-400">
+            Abrir ficha →
+          </span>
+        </div>
+      )}
+
       <div className="flex min-w-0 items-start gap-2.5">
         <input
           type="checkbox"
@@ -186,7 +212,7 @@ export function KanbanCard({
           className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brand-600"
         />
         <div className="min-w-0 flex-1">
-          <p className="max-h-10 overflow-hidden break-words text-sm font-semibold leading-5 text-brand-800 [overflow-wrap:anywhere]">
+          <p className="break-words text-[15px] font-semibold leading-5 text-brand-800 [overflow-wrap:anywhere]">
             {lead.name}
           </p>
           <p className="mt-0.5 text-[11px] text-brand-400">Família responsável</p>
