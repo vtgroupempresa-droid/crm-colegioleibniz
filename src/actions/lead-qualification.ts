@@ -68,9 +68,9 @@ export async function saveLeadQualification(
   const { error } = await supabase.rpc('set_lead_qualification', {
     p_lead_id: parsed.data.leadId,
     p_status: parsed.data.status,
-    p_note: parsed.data.description || null,
-    p_next_action: parsed.data.nextAction,
-    p_next_action_at: parsed.data.nextActionAt,
+    p_note: parsed.data.description || undefined,
+    p_next_action: parsed.data.nextAction ?? undefined,
+    p_next_action_at: parsed.data.nextActionAt ?? undefined,
   });
 
   if (error) return { ok: false, error: error.message };
