@@ -79,6 +79,27 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     return NextResponse.redirect(url);
   }
 
+  if (user) {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('must_change_password')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profile?.must_change_password && pathname !== '/trocar-senha') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/trocar-senha';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+
+    if (!profile?.must_change_password && pathname === '/trocar-senha') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/leads';
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Autenticado em /login → manda pro app
   if (user && pathname === '/login') {
     const url = request.nextUrl.clone();

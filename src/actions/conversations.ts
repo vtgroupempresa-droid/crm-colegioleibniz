@@ -1022,6 +1022,16 @@ export async function openConversationForLead(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Não autenticado' };
 
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role, sector_id')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (!profile) return { ok: false, error: 'Perfil de acesso não encontrado' };
+  if (profile.role !== 'admin' && !profile.sector_id) {
+    return { ok: false, error: 'Seu usuário ainda não foi vinculado a um setor' };
+  }
+
   const { data: lead } = await supabase
     .from('leads')
     .select('id, phone, instagram')
@@ -1056,11 +1066,14 @@ export async function openConversationForLead(
   const admin = createAdminClient();
   const { data: existingByKey } = await admin
     .from('conversations')
-    .select('id, lead_id, assigned_to')
+    .select('id, lead_id, assigned_to, sector_id')
     .eq('channel', channel)
     .eq('external_id', externalId)
     .maybeSingle();
   if (existingByKey) {
+    if (profile.role !== 'admin' && existingByKey.sector_id !== profile.sector_id) {
+      return { ok: false, error: 'Este contato já está em atendimento por outro setor' };
+    }
     const patch: { lead_id?: string; assigned_to?: string } = {};
     if (!existingByKey.lead_id) patch.lead_id = leadId;
     if (!existingByKey.assigned_to) patch.assigned_to = user.id;
@@ -1080,6 +1093,7 @@ export async function openConversationForLead(
         channel,
         external_id: externalId,
         assigned_to: user.id,
+        sector_id: profile.sector_id,
         // Sem status: abrir o chat pelo Kanban não reabre conversa resolvida
         // (INSERT novo usa o default 'open').
       },
@@ -1102,8 +1116,8 @@ export interface LeadConversation {
 
 /**
  * Conversas (com mensagens) de um lead — alimenta a aba "Conversas" do
- * LeadDrawer, para ver o chat sem sair do Kanban. RLS aplica o escopo
- * (responsável, closer ou admin).
+ * LeadDrawer, para ver o chat sem sair do Kanban. RLS aplica o escopo do
+ * setor; administradores mantêm a visão global.
  */
 export async function getLeadConversations(leadId: string): Promise<LeadConversation[]> {
   const supabase = createClient();
@@ -1328,20 +1342,32 @@ export async function startConversation(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Não autenticado' };
 
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role, sector_id')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (!profile) return { ok: false, error: 'Perfil de acesso não encontrado' };
+  if (profile.role !== 'admin' && !profile.sector_id) {
+    return { ok: false, error: 'Seu usuário ainda não foi vinculado a um setor' };
+  }
+
   const message = input.message?.trim();
   if (!message) return { ok: false, error: 'Mensagem vazia' };
   if (!input.instanceId) return { ok: false, error: 'Selecione um número para enviar' };
 
-  const admin = createAdminClient();
-
-  const { data: instance } = await admin
+  // A leitura autenticada aplica RLS: a pessoa só consegue escolher uma linha
+  // do próprio setor; administradores continuam vendo todas.
+  const { data: instance } = await supabase
     .from('whatsapp_instances')
-    .select('id, is_active')
+    .select('id, is_active, sector_id')
     .eq('id', input.instanceId)
     .maybeSingle();
   if (!instance || !instance.is_active) {
     return { ok: false, error: 'Número (instância) inválido ou inativo' };
   }
+
+  const admin = createAdminClient();
 
   // 1. Resolve o lead e o telefone (external_id = só dígitos, igual aos webhooks).
   let leadId: string | null = input.leadId ?? null;
@@ -1381,17 +1407,21 @@ export async function startConversation(
   //    instância de envio.
   const { data: existingConv } = await admin
     .from('conversations')
-    .select('id, assigned_to, lead_id')
+    .select('id, assigned_to, lead_id, sector_id')
     .eq('channel', 'whatsapp')
     .eq('external_id', phoneDigits)
     .maybeSingle();
 
   let conversationId: string;
   if (existingConv) {
+    if (profile.role !== 'admin' && existingConv.sector_id !== profile.sector_id) {
+      return { ok: false, error: 'Este contato já está em atendimento por outro setor' };
+    }
     await admin
       .from('conversations')
       .update({
         whatsapp_instance_id: instance.id,
+        sector_id: instance.sector_id ?? profile.sector_id,
         status: 'open',
         last_message_at: new Date().toISOString(),
         ...(existingConv.lead_id ? {} : { lead_id: leadId }),
@@ -1409,6 +1439,7 @@ export async function startConversation(
           lead_id: leadId,
           assigned_to: user.id,
           whatsapp_instance_id: instance.id,
+          sector_id: instance.sector_id ?? profile.sector_id,
           contact_name: input.contactName?.trim() || null,
           status: 'open',
           last_message_at: new Date().toISOString(),

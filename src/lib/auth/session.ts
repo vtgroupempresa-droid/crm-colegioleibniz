@@ -7,6 +7,8 @@ export interface SessionInfo {
   userId: string;
   role: UserRole;
   name: string;
+  sectorId: string | null;
+  sectorName: string | null;
 }
 
 /**
@@ -26,12 +28,19 @@ export const getSession = cache(async (): Promise<SessionInfo | null> => {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('name, role')
+    .select('name, role, sector_id, sector:sectors(name)')
     .eq('id', user.id)
     .maybeSingle();
 
   const role: UserRole = profile && isUserRole(profile.role) ? profile.role : 'comercial';
-  return { userId: user.id, role, name: profile?.name ?? user.email ?? 'Usuário' };
+  const sector = profile?.sector as { name: string } | null | undefined;
+  return {
+    userId: user.id,
+    role,
+    name: profile?.name ?? user.email ?? 'Usuário',
+    sectorId: profile?.sector_id ?? null,
+    sectorName: sector?.name ?? null,
+  };
 });
 
 /** Acesso de gestão total (Dércio e Alisson). */

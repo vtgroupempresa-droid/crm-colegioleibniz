@@ -26,6 +26,7 @@ export interface InvitationRow {
   id: string;
   email: string;
   role: UserRole;
+  sectorId: string | null;
   status: InvitationStatus;
   inviteUrl: string;
   createdAt: string;
@@ -35,6 +36,7 @@ export interface InvitationRow {
 export interface PublicInvitation {
   email: string;
   role: UserRole;
+  sectorId: string | null;
 }
 
 function siteUrl(): string {
@@ -57,10 +59,16 @@ function statusOf(row: {
   return 'pending';
 }
 
-const createSchema = z.object({
-  email: z.string().trim().toLowerCase().email('E-mail inválido'),
-  role: z.enum(USER_ROLES as unknown as [string, ...string[]]),
-});
+const createSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email('E-mail inválido'),
+    role: z.enum(USER_ROLES as unknown as [string, ...string[]]),
+    sectorId: z.string().uuid().nullable(),
+  })
+  .refine((value) => value.role === 'admin' || value.sectorId, {
+    message: 'Selecione o setor do usuário',
+    path: ['sectorId'],
+  });
 
 /** Cria um convite e devolve o link para o admin enviar. */
 export async function createInvitation(
@@ -83,13 +91,14 @@ export async function createInvitation(
     .maybeSingle();
   if (me?.role !== 'admin') return { ok: false, error: 'Apenas admins podem criar convites' };
 
-  const { email, role } = parsed.data;
+  const { email, role, sectorId } = parsed.data;
   const token = randomBytes(24).toString('base64url');
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { error } = await supabase.from('invitations').insert({
     email,
     role: role as UserRole,
+    sector_id: sectorId,
     token,
     created_by: user.id,
     expires_at: expiresAt,
@@ -116,13 +125,14 @@ export async function listInvitations(): Promise<InvitationRow[]> {
 
   const { data } = await supabase
     .from('invitations')
-    .select('id, email, role, token, accepted_at, revoked_at, expires_at, created_at')
+    .select('id, email, role, sector_id, token, accepted_at, revoked_at, expires_at, created_at')
     .order('created_at', { ascending: false });
 
   return (data ?? []).map((row) => ({
     id: row.id,
     email: row.email,
     role: isUserRole(row.role) ? row.role : 'comercial',
+    sectorId: row.sector_id,
     status: statusOf(row),
     inviteUrl: inviteUrlFor(row.token),
     createdAt: row.created_at,
@@ -163,11 +173,15 @@ export async function getInvitationByToken(token: string): Promise<PublicInvitat
   const admin = createAdminClient();
   const { data } = await admin
     .from('invitations')
-    .select('email, role, accepted_at, revoked_at, expires_at')
+    .select('email, role, sector_id, accepted_at, revoked_at, expires_at')
     .eq('token', token)
     .maybeSingle();
   if (!data || statusOf(data) !== 'pending') return null;
-  return { email: data.email, role: isUserRole(data.role) ? data.role : 'comercial' };
+  return {
+    email: data.email,
+    role: isUserRole(data.role) ? data.role : 'comercial',
+    sectorId: data.sector_id,
+  };
 }
 
 const acceptSchema = z.object({
@@ -191,7 +205,7 @@ export async function acceptInvitation(rawInput: unknown): Promise<ActionResult>
   const admin = createAdminClient();
   const { data: invite } = await admin
     .from('invitations')
-    .select('id, email, role, accepted_at, revoked_at, expires_at')
+    .select('id, email, role, sector_id, accepted_at, revoked_at, expires_at')
     .eq('token', token)
     .maybeSingle();
   if (!invite) return { ok: false, error: 'Convite inválido' };
@@ -205,7 +219,12 @@ export async function acceptInvitation(rawInput: unknown): Promise<ActionResult>
     email: invite.email,
     password,
     email_confirm: true,
-    user_metadata: { name, role: invite.role },
+    user_metadata: { name },
+    app_metadata: {
+      role: invite.role,
+      sector_id: invite.sector_id,
+      must_change_password: false,
+    },
   });
   if (createErr || !created.user) {
     return { ok: false, error: createErr?.message ?? 'Não foi possível criar a conta' };

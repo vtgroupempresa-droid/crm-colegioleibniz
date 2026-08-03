@@ -14,6 +14,7 @@ interface AdminUserRow {
   id: string;
   name: string;
   role: UserRole;
+  sectorId: string | null;
 }
 
 export default async function AdminPage() {
@@ -42,13 +43,20 @@ export default async function AdminPage() {
 
   const { data } = await supabase
     .from('user_profiles')
-    .select('id, name, role')
+    .select('id, name, role, sector_id')
+    .order('name', { ascending: true });
+
+  const { data: sectorRows } = await supabase
+    .from('sectors')
+    .select('id, slug, name, color')
+    .eq('is_active', true)
     .order('name', { ascending: true });
 
   const users: AdminUserRow[] = (data ?? []).map((row) => ({
     id: row.id,
     name: row.name,
     role: isUserRole(row.role) ? row.role : 'comercial',
+    sectorId: row.sector_id,
   }));
 
   const invites = await listInvitations();
@@ -63,7 +71,7 @@ export default async function AdminPage() {
           {users.length === 1 ? 'usuário cadastrado' : 'usuários cadastrados'}.
         </p>
       </header>
-      <UsersTable users={users} currentUserId={user.id} />
+      <UsersTable users={users} sectors={sectorRows ?? []} currentUserId={user.id} />
 
       <section className="rounded-xl border border-brand-100 bg-white p-5">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-brand-600">
@@ -75,7 +83,7 @@ export default async function AdminPage() {
           expira em 7 dias.
         </p>
         <div className="mt-4">
-          <InvitesManager invites={invites} />
+          <InvitesManager invites={invites} sectors={sectorRows ?? []} />
         </div>
       </section>
 

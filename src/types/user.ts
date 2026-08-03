@@ -12,6 +12,14 @@ export type UserRole = Enums<'user_role'>;
 export type UserProfile = Tables<'user_profiles'>;
 export type UserProfileInsert = TablesInsert<'user_profiles'>;
 export type UserProfileUpdate = TablesUpdate<'user_profiles'>;
+export type Sector = Tables<'sectors'>;
+
+export interface SectorSummary {
+  id: string;
+  slug: string;
+  name: string;
+  color: string;
+}
 
 export const USER_ROLES: readonly UserRole[] = ['admin', 'comercial'] as const;
 
