@@ -61,7 +61,7 @@ const createLeadSchema = z.object({
   with_child: z.boolean().nullable().optional(),
   child_name: z.string().nullable().optional(),
   child_age: z.number().int().min(0).max(25).nullable().optional(),
-  monthly_budget: z
+  budget: z
     .number()
     .finite()
     .min(0, 'O orçamento não pode ser negativo')
@@ -209,7 +209,7 @@ export async function createLead(
     with_child: clean.with_child ?? null,
     child_name: clean.child_name ?? null,
     child_age: clean.child_age ?? null,
-    monthly_budget: clean.monthly_budget ?? null,
+    budget: clean.budget ?? null,
     education_level: (clean.education_level ?? null) as Lead['education_level'],
     school_year: clean.school_year ?? null,
     source: clean.source as Lead['source'],
@@ -449,7 +449,9 @@ export async function moveLeadsStage(
   ids: string[],
   newStage: string,
   force = false,
-): Promise<ActionResult<{ moved: number; skipped: { id: string; name: string; reason: string }[] }>> {
+): Promise<
+  ActionResult<{ moved: number; skipped: { id: string; name: string; reason: string }[] }>
+> {
   const supabase = createClient();
   const {
     data: { user },
@@ -554,7 +556,9 @@ export async function moveLeadsToPipeline(
   targetPipeline: PipelineKind,
   targetStage: string,
   force = false,
-): Promise<ActionResult<{ moved: number; skipped: { id: string; name: string; reason: string }[] }>> {
+): Promise<
+  ActionResult<{ moved: number; skipped: { id: string; name: string; reason: string }[] }>
+> {
   const supabase = createClient();
   const {
     data: { user },
@@ -654,16 +658,9 @@ export async function archiveLead(id: string): Promise<ActionResult> {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Não autenticado' };
 
-  const { data: lead } = await supabase
-    .from('leads')
-    .select('is_demo')
-    .eq('id', id)
-    .maybeSingle();
+  const { data: lead } = await supabase.from('leads').select('is_demo').eq('id', id).maybeSingle();
 
-  const { error } = await supabase
-    .from('leads')
-    .update({ is_archived: true })
-    .eq('id', id);
+  const { error } = await supabase.from('leads').update({ is_archived: true }).eq('id', id);
 
   if (error) return { ok: false, error: error.message };
 
