@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import {
   createLeadFromSharedContact,
   reactToMessage,
-  setConversationAiMuted,
+  setLeadAutomationsBlocked,
 } from '@/actions/conversations';
 import type { ThreadLeadExtras } from '@/actions/conversations';
 import { cn } from '@/lib/utils/cn';
@@ -91,41 +91,158 @@ const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
   {
     label: 'Carinhas',
     emojis: [
-      '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂',
-      '😉', '😍', '🥰', '😘', '😋', '😜', '🤗', '🤔', '🤩', '🥳',
-      '😌', '😎', '🥺', '😢', '😭', '😤', '😮', '😱', '🤯', '😴',
-      '🤒', '🤧', '🙄', '😬', '🫡', '🤝',
+      '😀',
+      '😃',
+      '😄',
+      '😁',
+      '😅',
+      '😂',
+      '🤣',
+      '😊',
+      '😇',
+      '🙂',
+      '😉',
+      '😍',
+      '🥰',
+      '😘',
+      '😋',
+      '😜',
+      '🤗',
+      '🤔',
+      '🤩',
+      '🥳',
+      '😌',
+      '😎',
+      '🥺',
+      '😢',
+      '😭',
+      '😤',
+      '😮',
+      '😱',
+      '🤯',
+      '😴',
+      '🤒',
+      '🤧',
+      '🙄',
+      '😬',
+      '🫡',
+      '🤝',
     ],
   },
   {
     label: 'Gestos',
     emojis: [
-      '👍', '👎', '👏', '👏🏻', '🙌', '🙌🏻', '🙏', '🤲', '👌', '🤞',
-      '✌️', '🤙', '👊', '✊', '💪', '👉', '👈', '👆', '👇', '✋',
-      '🖐️', '🫶',
+      '👍',
+      '👎',
+      '👏',
+      '👏🏻',
+      '🙌',
+      '🙌🏻',
+      '🙏',
+      '🤲',
+      '👌',
+      '🤞',
+      '✌️',
+      '🤙',
+      '👊',
+      '✊',
+      '💪',
+      '👉',
+      '👈',
+      '👆',
+      '👇',
+      '✋',
+      '🖐️',
+      '🫶',
     ],
   },
   {
     label: 'Corações',
     emojis: [
-      '❤️', '🩷', '🤍', '💙', '💚', '💛', '🧡', '💜', '🖤', '🤎',
-      '💖', '💗', '💓', '💞', '💕', '💘', '❤️‍🔥', '💔', '💯',
+      '❤️',
+      '🩷',
+      '🤍',
+      '💙',
+      '💚',
+      '💛',
+      '🧡',
+      '💜',
+      '🖤',
+      '🤎',
+      '💖',
+      '💗',
+      '💓',
+      '💞',
+      '💕',
+      '💘',
+      '❤️‍🔥',
+      '💔',
+      '💯',
     ],
   },
   {
     label: 'Celebração',
     emojis: [
-      '🎉', '🎊', '🥂', '🍾', '🏆', '🥇', '🎯', '🚀', '🔥', '⭐',
-      '🌟', '✨', '💫', '🎁', '🎈', '🪄', '🌷', '💃🏻', '💃🏼',
+      '🎉',
+      '🎊',
+      '🥂',
+      '🍾',
+      '🏆',
+      '🥇',
+      '🎯',
+      '🚀',
+      '🔥',
+      '⭐',
+      '🌟',
+      '✨',
+      '💫',
+      '🎁',
+      '🎈',
+      '🪄',
+      '🌷',
+      '💃🏻',
+      '💃🏼',
     ],
   },
   {
     label: 'Trabalho e saúde',
     emojis: [
-      '✅', '❌', '⚠️', '📅', '📆', '⏰', '⏳', '📌', '📍', '📞',
-      '📱', '💬', '📩', '📧', '📝', '📄', '📊', '💰', '💵', '💳',
-      '🧾', '🔗', '💻', '🩺', '💉', '💊', '🧠', '🫀', '🧬', '🥼',
-      '🏥', '⚖️', '🍎', '🏃', '🧘', '😷',
+      '✅',
+      '❌',
+      '⚠️',
+      '📅',
+      '📆',
+      '⏰',
+      '⏳',
+      '📌',
+      '📍',
+      '📞',
+      '📱',
+      '💬',
+      '📩',
+      '📧',
+      '📝',
+      '📄',
+      '📊',
+      '💰',
+      '💵',
+      '💳',
+      '🧾',
+      '🔗',
+      '💻',
+      '🩺',
+      '💉',
+      '💊',
+      '🧠',
+      '🫀',
+      '🧬',
+      '🥼',
+      '🏥',
+      '⚖️',
+      '🍎',
+      '🏃',
+      '🧘',
+      '😷',
     ],
   },
 ];
@@ -196,6 +313,7 @@ const STOP_REASON_LABEL: Record<string, string> = {
   lead_lost: 'lead perdido',
   lead_won: 'lead ganho',
   manual_stop: 'pausada manualmente',
+  automations_blocked: 'automações bloqueadas para o lead',
 };
 
 const SP_TIMEZONE = 'America/Sao_Paulo';
@@ -317,9 +435,7 @@ function buildTimeline(messages: Message[]): TimelineItem[] {
       kind: 'message',
       message: m,
       firstOfGroup,
-      reactions: m.external_message_id
-        ? (reactionsByTarget.get(m.external_message_id) ?? [])
-        : [],
+      reactions: m.external_message_id ? (reactionsByTarget.get(m.external_message_id) ?? []) : [],
     });
     prev = m;
   }
@@ -377,7 +493,7 @@ function MobileLeadStrip({
         </p>
       </div>
       {lead.child_name && (
-        <div className="min-w-0 shrink-0 max-w-36">
+        <div className="min-w-0 max-w-36 shrink-0">
           <p className="text-[9px] font-semibold uppercase tracking-wide text-brand-400">Aluno</p>
           <p className="truncate text-xs font-semibold text-brand-700">{lead.child_name}</p>
         </div>
@@ -539,31 +655,36 @@ export function ConversationView({
     }
   }
 
-  // Trava "IA não entra nesta conversa" (caso Lozany: humano negociando e a IA
-  // entrou após 8min de silêncio). Mutar derruba a IA na hora e vale pra sempre
-  // nesta conversa, até alguém liberar de novo.
-  const [aiMuted, setAiMuted] = useState(conversation.ai_muted);
-  const [mutingAi, setMutingAi] = useState(false);
+  // Trava permanente no nível do lead: vale para todas as conversas e bloqueia
+  // bot, IA e mensagens/follow-ups automáticos. O atendimento manual continua.
+  const [automationsBlocked, setAutomationsBlocked] = useState(lead?.automations_blocked ?? false);
+  const [updatingAutomations, setUpdatingAutomations] = useState(false);
   useEffect(() => {
-    setAiMuted(conversation.ai_muted);
-  }, [conversation.id, conversation.ai_muted]);
+    setAutomationsBlocked(lead?.automations_blocked ?? false);
+  }, [conversation.id, lead?.automations_blocked]);
 
-  async function handleToggleAiMuted() {
-    setMutingAi(true);
-    const next = !aiMuted;
+  async function handleToggleAutomations() {
+    setUpdatingAutomations(true);
+    const next = !automationsBlocked;
     try {
-      const res = await setConversationAiMuted(conversation.id, next);
+      const res = await setLeadAutomationsBlocked(conversation.id, next);
       if (res.ok) {
-        setAiMuted(next);
+        setAutomationsBlocked(next);
         if (next) setAiActive(false);
-        toast.success(next ? 'IA bloqueada nesta conversa.' : 'IA liberada nesta conversa.');
+        if (next) setFollowupStopped(true);
+        toast.success(
+          next
+            ? 'Automações bloqueadas para este lead.'
+            : 'Automações liberadas para novas interações.',
+        );
+        onChanged?.();
       } else {
         toast.error(res.error);
       }
     } catch {
-      toast.error('Falha ao alterar a trava da IA.');
+      toast.error('Falha ao alterar o bloqueio de automações.');
     } finally {
-      setMutingAi(false);
+      setUpdatingAutomations(false);
     }
   }
 
@@ -765,7 +886,9 @@ export function ConversationView({
       recStreamRef.current = stream;
       const picked = pickRecordingMime();
       recMimeRef.current = picked;
-      const rec = picked.mime ? new MediaRecorder(stream, { mimeType: picked.mime }) : new MediaRecorder(stream);
+      const rec = picked.mime
+        ? new MediaRecorder(stream, { mimeType: picked.mime })
+        : new MediaRecorder(stream);
       recRef.current = rec;
       recChunksRef.current = [];
       recCancelledRef.current = false;
@@ -953,21 +1076,32 @@ export function ConversationView({
           {conversation.channel === 'whatsapp' && conversation.lead_id && (
             <button
               type="button"
-              onClick={handleToggleAiMuted}
-              disabled={mutingAi}
+              onClick={handleToggleAutomations}
+              disabled={updatingAutomations}
               title={
-                aiMuted
-                  ? 'A IA está bloqueada nesta conversa (não responde nem faz follow-up). Clique para liberar.'
-                  : 'Bloquear a IA nesta conversa — ela não responde nem faz follow-up aqui.'
+                automationsBlocked
+                  ? 'Bot, IA e follow-ups estão bloqueados em todas as conversas deste lead. Clique para liberar novas interações automáticas.'
+                  : 'Bloquear bot, IA e mensagens/follow-ups automáticos para este lead. Mensagens manuais continuam liberadas.'
               }
               className={cn(
-                'focus-ring hidden rounded-md border px-2 py-1.5 text-xs font-medium disabled:opacity-60 sm:block',
-                aiMuted
+                'focus-ring rounded-md border px-2 py-1.5 text-xs font-medium disabled:opacity-60',
+                automationsBlocked
                   ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'
                   : 'border-brand-200 text-brand-600 hover:bg-brand-100',
               )}
             >
-              {mutingAi ? '…' : aiMuted ? 'IA bloqueada' : 'Bloquear IA'}
+              {updatingAutomations ? (
+                '…'
+              ) : (
+                <>
+                  <span className="sm:hidden">
+                    {automationsBlocked ? 'Bloqueadas' : 'Automações'}
+                  </span>
+                  <span className="hidden sm:inline">
+                    {automationsBlocked ? 'Automações bloqueadas' : 'Bloquear automações'}
+                  </span>
+                </>
+              )}
             </button>
           )}
         </div>
@@ -1012,9 +1146,7 @@ export function ConversationView({
             );
           })}
         </div>
-        {currentSector && (
-          <span className="sr-only">Setor atual: {currentSector.name}</span>
-        )}
+        {currentSector && <span className="sr-only">Setor atual: {currentSector.name}</span>}
       </div>
 
       {/* Faixa compacta do lead — mobile (substitui a 3ª coluna). */}
@@ -1122,9 +1254,7 @@ export function ConversationView({
               <MessageBubble
                 key={item.message.id}
                 message={item.message}
-                senderLabel={
-                  item.message.sent_by ? (senders[item.message.sent_by] ?? null) : null
-                }
+                senderLabel={item.message.sent_by ? (senders[item.message.sent_by] ?? null) : null}
                 reactions={item.reactions}
                 firstOfGroup={item.firstOfGroup}
                 onResend={handleResend}
@@ -1252,9 +1382,13 @@ export function ConversationView({
               <XIcon size={20} />
             </button>
             <div className="flex h-11 flex-1 items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 sm:h-10">
-              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
+              <span
+                className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600"
+                aria-hidden="true"
+              />
               <span className="text-sm font-medium text-red-700">
-                Gravando… {Math.floor(recSeconds / 60)}:{(recSeconds % 60).toString().padStart(2, '0')}
+                Gravando… {Math.floor(recSeconds / 60)}:
+                {(recSeconds % 60).toString().padStart(2, '0')}
               </span>
             </div>
             <button
@@ -1306,7 +1440,9 @@ export function ConversationView({
               }}
               rows={1}
               disabled={disconnected}
-              title={disconnected ? 'Número desconectado — reconecte em Admin → WhatsApp' : undefined}
+              title={
+                disconnected ? 'Número desconectado — reconecte em Admin → WhatsApp' : undefined
+              }
               placeholder={
                 disconnected ? 'Número desconectado — envio bloqueado' : 'Escreva uma mensagem…'
               }
@@ -1318,7 +1454,11 @@ export function ConversationView({
               type="button"
               onClick={() => void startRecording()}
               disabled={uploading || disconnected}
-              title={disconnected ? 'Número desconectado — reconecte em Admin → WhatsApp' : 'Gravar mensagem de voz'}
+              title={
+                disconnected
+                  ? 'Número desconectado — reconecte em Admin → WhatsApp'
+                  : 'Gravar mensagem de voz'
+              }
               className="focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-brand-500 hover:bg-brand-100 disabled:opacity-40 sm:h-10 sm:w-10"
               aria-label="Gravar áudio"
             >
@@ -1328,7 +1468,9 @@ export function ConversationView({
               type="button"
               onClick={submit}
               disabled={sending || uploading || !text.trim() || disconnected}
-              title={disconnected ? 'Número desconectado — reconecte em Admin → WhatsApp' : undefined}
+              title={
+                disconnected ? 'Número desconectado — reconecte em Admin → WhatsApp' : undefined
+              }
               aria-label="Enviar"
               className={cn(
                 'focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white',

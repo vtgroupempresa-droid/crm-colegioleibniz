@@ -110,6 +110,7 @@ export async function GET(req: NextRequest) {
     .eq('stage', 'novo_lead')
     .eq('is_archived', false)
     .eq('is_demo', false)
+    .eq('automations_blocked', false)
     .is('merged_into', null)
     .not('phone', 'is', null)
     .gte('created_at', new Date(now - WINDOW_MS).toISOString())
@@ -217,7 +218,10 @@ export async function GET(req: NextRequest) {
     }
 
     await advanceLeadOnFirstOutbound(admin, conversationId, { actorUserId: null, via: 'auto' });
-    await registrar('enviado', 'Template de primeiro contato enviado automaticamente (2min após a entrada).');
+    await registrar(
+      'enviado',
+      'Template de primeiro contato enviado automaticamente (2min após a entrada).',
+    );
   }
 
   return NextResponse.json({

@@ -153,14 +153,10 @@ export function ChatLayout({
     const supabase = createClient();
     const channel = supabase
       .channel('chat:conversations')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversations' },
-        () => {
-          void refreshConversations();
-          void refreshUnread();
-        },
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+        void refreshConversations();
+        void refreshUnread();
+      })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
@@ -229,7 +225,8 @@ export function ChatLayout({
         return false;
       }
       if (term) {
-        const hay = `${item.leadName ?? ''} ${conv.contact_name ?? ''} ${conv.external_id}`.toLowerCase();
+        const hay =
+          `${item.leadName ?? ''} ${conv.contact_name ?? ''} ${conv.external_id}`.toLowerCase();
         if (!hay.includes(term)) return false;
       }
       return true;
@@ -311,9 +308,8 @@ export function ChatLayout({
 
   // Nome legível do stage atual do lead (faixa mobile "Pipeline · Stage").
   const stageName = thread?.lead
-    ? (stages.find(
-        (s) => s.pipeline === thread.lead?.pipeline && s.slug === thread.lead?.stage,
-      )?.name ?? thread.lead.stage)
+    ? (stages.find((s) => s.pipeline === thread.lead?.pipeline && s.slug === thread.lead?.stage)
+        ?.name ?? thread.lead.stage)
     : null;
 
   return (

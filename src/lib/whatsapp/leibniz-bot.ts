@@ -125,10 +125,22 @@ const INTEREST_MENU: OfficialInteractiveList = {
   sections: [
     {
       rows: [
-        { id: 'sales:matricula', title: 'Matricular meu filho(a)', description: 'Próximo ano letivo' },
-        { id: 'sales:transferencia', title: 'Transferir de escola', description: 'Conhecer vagas e proposta' },
+        {
+          id: 'sales:matricula',
+          title: 'Matricular meu filho(a)',
+          description: 'Próximo ano letivo',
+        },
+        {
+          id: 'sales:transferencia',
+          title: 'Transferir de escola',
+          description: 'Conhecer vagas e proposta',
+        },
         { id: 'sales:conhecer', title: 'Só conhecer o colégio', description: 'Sem compromisso' },
-        { id: 'sales:outro_assunto', title: 'Já sou responsável', description: 'Escolher outro setor' },
+        {
+          id: 'sales:outro_assunto',
+          title: 'Já sou responsável',
+          description: 'Escolher outro setor',
+        },
       ],
     },
   ],
@@ -156,8 +168,16 @@ const NEXT_STEP_MENU: OfficialInteractiveList = {
   sections: [
     {
       rows: [
-        { id: 'next:visit', title: 'Agendar uma visita', description: 'Conhecer o colégio de perto' },
-        { id: 'next:documents', title: 'Matrícula e documentos', description: 'Falar com a Secretaria' },
+        {
+          id: 'next:visit',
+          title: 'Agendar uma visita',
+          description: 'Conhecer o colégio de perto',
+        },
+        {
+          id: 'next:documents',
+          title: 'Matrícula e documentos',
+          description: 'Falar com a Secretaria',
+        },
         { id: 'next:faq', title: 'Tenho outra dúvida', description: 'Ver perguntas frequentes' },
         { id: 'next:human', title: 'Falar com a equipe', description: 'Atendimento humano' },
       ],
@@ -198,7 +218,10 @@ function normalizeText(value: string | null): string {
     .trim();
 }
 
-function sectorSlugFromMessage(interactiveId: string | null, content: string | null): string | null {
+function sectorSlugFromMessage(
+  interactiveId: string | null,
+  content: string | null,
+): string | null {
   if (interactiveId?.startsWith('sector:')) return interactiveId.slice('sector:'.length);
   const text = normalizeText(content);
   const match = SECTOR_OPTIONS.find((option) => {
@@ -254,10 +277,7 @@ async function recordBotOutbound(
     sent_at: now,
     metadata: { bot: { state: input.state } } as unknown as Json,
   });
-  await admin
-    .from('conversations')
-    .update({ last_message_at: now })
-    .eq('id', input.conversationId);
+  await admin.from('conversations').update({ last_message_at: now }).eq('id', input.conversationId);
   await updateSession(admin, input.conversationId, { last_bot_message_at: now });
 }
 
@@ -588,9 +608,7 @@ async function fallback(
     await handoff(
       admin,
       input,
-      sessionContext(session.context).segment === 'infantil'
-        ? 'educacao_infantil'
-        : 'comercial',
+      sessionContext(session.context).segment === 'infantil' ? 'educacao_infantil' : 'comercial',
       'Duas tentativas sem compreensão',
       'Vou passar você para um de nossos atendentes, assim ninguém fica sem resposta. A equipe continuará por aqui.',
     );
@@ -741,7 +759,10 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
 
   if (state === 'sales_awaiting_segment') {
     const segment = choice?.startsWith('segment:') ? choice.slice('segment:'.length) : null;
-    if (!segment || !['infantil', 'fundamental_1', 'fundamental_2', 'medio', 'pre_enem'].includes(segment)) {
+    if (
+      !segment ||
+      !['infantil', 'fundamental_1', 'fundamental_2', 'medio', 'pre_enem'].includes(segment)
+    ) {
       await fallback(admin, input, session, SEGMENT_MENU);
       return;
     }

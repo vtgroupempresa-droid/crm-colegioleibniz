@@ -544,7 +544,9 @@ export async function sendMessage(
 
   const { data: conversation } = await supabase
     .from('conversations')
-    .select('id, channel, external_id, whatsapp_instance_id')
+    .select(
+      'id, channel, external_id, whatsapp_instance_id, lead_id, ai_muted, lead:leads(automations_blocked)',
+    )
     .eq('id', conversationId)
     .maybeSingle();
   if (!conversation) return { ok: false, error: 'Conversa não encontrada' };
@@ -571,16 +573,21 @@ export async function sendMessage(
   // Atualiza o last_message_at e (re)arma a âncora da cadência de follow-up:
   // todo contato humano "zera o relógio" do Cenário B. Se o lead sumir depois,
   // o follow-up D2+ parte deste momento.
-  await supabase
-    .from('conversations')
-    .update({
-      last_message_at: new Date().toISOString(),
-      followup_last_sent_at: new Date().toISOString(),
-      followup_day: 0,
-      followup_stopped: false,
-      followup_stop_reason: null,
-    })
-    .eq('id', conversationId);
+  const messageLead = conversation.lead as { automations_blocked: boolean } | null;
+  const messageAutomationsBlocked =
+    conversation.ai_muted || Boolean(messageLead?.automations_blocked);
+  const manualMessagePatch = {
+    last_message_at: new Date().toISOString(),
+    ...(!messageAutomationsBlocked
+      ? {
+          followup_last_sent_at: new Date().toISOString(),
+          followup_day: 0,
+          followup_stopped: false,
+          followup_stop_reason: null,
+        }
+      : {}),
+  };
+  await supabase.from('conversations').update(manualMessagePatch).eq('id', conversationId);
 
   // Dispara no provedor do canal. Usa admin para resolver token e atualizar status.
   const admin = createAdminClient();
@@ -685,7 +692,11 @@ export async function reactToMessage(
       { phoneNumberId: instance.phone_number_id, accessToken: instance.instance_token },
     );
   } else {
-    result = await sendWhatsappReaction(conversation.external_id, target.external_message_id, emoji);
+    result = await sendWhatsappReaction(
+      conversation.external_id,
+      target.external_message_id,
+      emoji,
+    );
   }
   if (!result.ok) {
     return { ok: false, error: result.skipped ? 'Canal não configurado' : result.error };
@@ -728,7 +739,9 @@ export async function sendTemplateMessage(
 
   const { data: conversation } = await supabase
     .from('conversations')
-    .select('id, channel, external_id, whatsapp_instance_id, contact_name, lead:leads(name)')
+    .select(
+      'id, channel, external_id, whatsapp_instance_id, contact_name, ai_muted, lead:leads(name, automations_blocked)',
+    )
     .eq('id', conversationId)
     .maybeSingle();
   if (!conversation) return { ok: false, error: 'Conversa não encontrada' };
@@ -784,16 +797,24 @@ export async function sendTemplateMessage(
   }
 
   // Mesmo efeito do sendMessage: contato humano re-ancora a cadência de follow-up.
-  await supabase
-    .from('conversations')
-    .update({
-      last_message_at: new Date().toISOString(),
-      followup_last_sent_at: new Date().toISOString(),
-      followup_day: 0,
-      followup_stopped: false,
-      followup_stop_reason: null,
-    })
-    .eq('id', conversationId);
+  const templateLead = conversation.lead as {
+    name: string;
+    automations_blocked: boolean;
+  } | null;
+  const templateAutomationsBlocked =
+    conversation.ai_muted || Boolean(templateLead?.automations_blocked);
+  const manualTemplatePatch = {
+    last_message_at: new Date().toISOString(),
+    ...(!templateAutomationsBlocked
+      ? {
+          followup_last_sent_at: new Date().toISOString(),
+          followup_day: 0,
+          followup_stopped: false,
+          followup_stop_reason: null,
+        }
+      : {}),
+  };
+  await supabase.from('conversations').update(manualTemplatePatch).eq('id', conversationId);
 
   const admin = createAdminClient();
 
@@ -867,13 +888,16 @@ export async function sendTemplateMessage(
 }
 
 /**
- * Trava "IA não entra nesta conversa" (botão do /chat). Mutar também derruba a
- * IA na hora se ela estiver ativa. Desmutar volta a valer as regras normais
- * (8min sem resposta humana + guarda de humano ativo nas últimas 24h).
+ * Trava única das automações do lead (botão do /chat).
+ *
+ * Bloquear vale para todas as conversas atuais do lead: encerra IA/bot e pausa
+ * follow-ups automáticos. Mensagens manuais continuam liberadas. Ao liberar,
+ * não reabre fluxos antigos do bot e só retoma follow-ups que esta própria
+ * trava havia pausado.
  */
-export async function setConversationAiMuted(
+export async function setLeadAutomationsBlocked(
   conversationId: string,
-  muted: boolean,
+  blocked: boolean,
 ): Promise<ActionResult> {
   const supabase = createClient();
   const {
@@ -881,34 +905,101 @@ export async function setConversationAiMuted(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Não autenticado' };
 
-  // .select() detecta o "sucesso" silencioso do RLS (0 linhas afetadas).
-  const { data, error } = await supabase
+  // A leitura autenticada aplica a RLS e comprova acesso à conversa antes de
+  // qualquer escrita administrativa nas demais conversas do mesmo lead.
+  const { data: conversation } = await supabase
     .from('conversations')
-    .update({
-      ai_muted: muted,
-      ...(muted ? { ai_active: false, ai_deactivated_at: new Date().toISOString() } : {}),
-    })
     .eq('id', conversationId)
-    .select('id, lead_id');
-  if (error) return { ok: false, error: error.message };
-  if (!data || data.length === 0) {
+    .select('id, lead_id')
+    .maybeSingle();
+  if (!conversation) {
     return { ok: false, error: 'Sem permissão para alterar esta conversa.' };
   }
-
-  const row = data[0];
-  if (row?.lead_id) {
-    await supabase.from('activities').insert({
-      lead_id: row.lead_id,
-      user_id: user.id,
-      type: 'system',
-      title: muted ? 'IA bloqueada na conversa' : 'IA liberada na conversa',
-      description: muted
-        ? 'Um humano bloqueou a IA nesta conversa — ela não responde nem faz follow-up aqui.'
-        : 'A IA foi liberada nesta conversa (voltam a valer as regras normais).',
-      is_demo: false,
-      metadata: { via: 'ai-sdr', event: muted ? 'muted' : 'unmuted', conversation_id: conversationId },
-    });
+  if (!conversation.lead_id) {
+    return { ok: false, error: 'Vincule esta conversa a um lead antes de bloquear automações.' };
   }
+
+  const admin = createAdminClient();
+  const { data: lead } = await admin
+    .from('leads')
+    .select('id, is_demo, automations_blocked, automations_blocked_at, automations_blocked_by')
+    .eq('id', conversation.lead_id)
+    .maybeSingle();
+  if (!lead) return { ok: false, error: 'Lead não encontrado.' };
+
+  const now = new Date().toISOString();
+  const { error: leadError } = await admin
+    .from('leads')
+    .update({
+      automations_blocked: blocked,
+      automations_blocked_at: blocked ? now : null,
+      automations_blocked_by: blocked ? user.id : null,
+    })
+    .eq('id', lead.id);
+  if (leadError) return { ok: false, error: leadError.message };
+
+  const conversationPatch = blocked
+    ? { ai_muted: true, ai_active: false, ai_deactivated_at: now }
+    : { ai_muted: false };
+  const { data: affected, error: conversationsError } = await admin
+    .from('conversations')
+    .update(conversationPatch)
+    .eq('lead_id', lead.id)
+    .select('id');
+  if (conversationsError) {
+    await admin
+      .from('leads')
+      .update({
+        automations_blocked: lead.automations_blocked,
+        automations_blocked_at: lead.automations_blocked_at,
+        automations_blocked_by: lead.automations_blocked_by,
+      })
+      .eq('id', lead.id);
+    return { ok: false, error: conversationsError.message };
+  }
+
+  if (blocked) {
+    // Não sobrescreve pausas anteriores (lead respondeu, perda, manual etc.).
+    await admin
+      .from('conversations')
+      .update({ followup_stopped: true, followup_stop_reason: 'automations_blocked' })
+      .eq('lead_id', lead.id)
+      .eq('followup_stopped', false);
+
+    const conversationIds = (affected ?? []).map((row) => row.id);
+    if (conversationIds.length > 0) {
+      await admin
+        .from('conversation_bot_sessions')
+        .update({ state: 'human_handoff', fallback_count: 0 })
+        .in('conversation_id', conversationIds);
+    }
+  } else {
+    // Só retoma uma cadência se ela foi pausada por este botão.
+    await admin
+      .from('conversations')
+      .update({ followup_stopped: false, followup_stop_reason: null })
+      .eq('lead_id', lead.id)
+      .eq('followup_stop_reason', 'automations_blocked');
+  }
+
+  await admin.from('activities').insert({
+    lead_id: lead.id,
+    user_id: user.id,
+    type: 'system',
+    title: blocked ? 'Automações bloqueadas para o lead' : 'Automações liberadas para o lead',
+    description: blocked
+      ? 'Bot, IA e mensagens/follow-ups automáticos foram bloqueados em todas as conversas deste lead. O atendimento manual continua disponível.'
+      : 'As automações foram liberadas para novas interações. Fluxos antigos do bot não foram reiniciados.',
+    is_demo: lead.is_demo,
+    metadata: {
+      via: 'chat',
+      event: blocked ? 'automations_blocked' : 'automations_unblocked',
+      conversation_id: conversationId,
+    },
+  });
+
+  revalidatePath('/chat');
+  revalidatePath('/oportunidades');
   return { ok: true, data: undefined };
 }
 
@@ -933,10 +1024,19 @@ export async function sendTemplateMessageAsAi(
 
   const { data: conversation } = await admin
     .from('conversations')
-    .select('id, channel, external_id, whatsapp_instance_id, contact_name, lead:leads(name)')
+    .select(
+      'id, channel, external_id, whatsapp_instance_id, contact_name, ai_muted, lead:leads(name, automations_blocked)',
+    )
     .eq('id', conversationId)
     .maybeSingle();
   if (!conversation) return { ok: false, error: 'Conversa não encontrada' };
+  const automationLead = conversation.lead as {
+    name: string;
+    automations_blocked: boolean;
+  } | null;
+  if (conversation.ai_muted || automationLead?.automations_blocked) {
+    return { ok: false, error: 'Automações bloqueadas para este lead.' };
+  }
 
   const { data: template } = await admin
     .from('message_templates')
@@ -954,7 +1054,7 @@ export async function sendTemplateMessageAsAi(
     if (extraValues?.[variable]?.trim()) {
       resolved[variable] = extraValues[variable].trim();
     } else if (variable === AUTO_LEAD_NAME_VARIABLE) {
-      const first = firstNameOf(conversation.lead?.name ?? conversation.contact_name);
+      const first = firstNameOf(automationLead?.name ?? conversation.contact_name);
       if (!first) return { ok: false, error: 'Lead sem nome — não dá para preencher {{nome}}.' };
       resolved[variable] = first;
     } else {
@@ -997,7 +1097,11 @@ export async function sendTemplateMessageAsAi(
   // Instância oficial + template vinculado à Meta → type=template (entrega fora
   // da janela). Demais canais (UaZAPI) aceitam o texto renderizado como comum.
   let result: MetaResult<{ messageId: string | null }> | null = null;
-  if (conversation.channel === 'whatsapp' && template.meta_template_name && conversation.whatsapp_instance_id) {
+  if (
+    conversation.channel === 'whatsapp' &&
+    template.meta_template_name &&
+    conversation.whatsapp_instance_id
+  ) {
     const { data: instance } = await admin
       .from('whatsapp_instances')
       .select('id, provider, phone_number_id, instance_token')
@@ -1175,7 +1279,7 @@ export async function openConversationForLead(
 
   const { data: lead } = await supabase
     .from('leads')
-    .select('id, phone, instagram')
+    .select('id, phone, instagram, automations_blocked')
     .eq('id', leadId)
     .maybeSingle();
   if (!lead) return { ok: false, error: 'Lead não encontrado' };
@@ -1193,9 +1297,7 @@ export async function openConversationForLead(
   const channel: ChatChannel | null = lead.phone ? 'whatsapp' : lead.instagram ? 'instagram' : null;
   // external_id do WhatsApp são só dígitos (igual aos webhooks UaZAPI/Meta), para
   // reaproveitar uma conversa de triagem/eco que já exista para o mesmo número.
-  const externalId = lead.phone
-    ? lead.phone.replace(/\D/g, '')
-    : lead.instagram ?? null;
+  const externalId = lead.phone ? lead.phone.replace(/\D/g, '') : (lead.instagram ?? null);
   if (!channel || !externalId) {
     return { ok: false, error: 'Lead sem telefone ou Instagram para iniciar conversa' };
   }
@@ -1221,6 +1323,17 @@ export async function openConversationForLead(
     if (Object.keys(patch).length > 0) {
       await admin.from('conversations').update(patch).eq('id', existingByKey.id);
     }
+    if (lead.automations_blocked) {
+      await admin
+        .from('conversations')
+        .update({
+          ai_muted: true,
+          ai_active: false,
+          followup_stopped: true,
+          followup_stop_reason: 'automations_blocked',
+        })
+        .eq('id', existingByKey.id);
+    }
     return { ok: true, data: { conversationId: existingByKey.id } };
   }
 
@@ -1235,6 +1348,14 @@ export async function openConversationForLead(
         external_id: externalId,
         assigned_to: user.id,
         sector_id: profile.sector_id,
+        ...(lead.automations_blocked
+          ? {
+              ai_muted: true,
+              ai_active: false,
+              followup_stopped: true,
+              followup_stop_reason: 'automations_blocked',
+            }
+          : {}),
         // Sem status: abrir o chat pelo Kanban não reabre conversa resolvida
         // (INSERT novo usa o default 'open').
       },
@@ -1512,21 +1633,25 @@ export async function startConversation(
 
   // 1. Resolve o lead e o telefone (external_id = só dígitos, igual aos webhooks).
   let leadId: string | null = input.leadId ?? null;
+  let leadAutomationsBlocked = false;
   let phoneDigits: string;
   const typedDigits = input.phone ? input.phone.replace(/\D/g, '') : '';
 
   if (leadId) {
     const { data: lead } = await admin
       .from('leads')
-      .select('id, phone')
+      .select('id, phone, automations_blocked')
       .eq('id', leadId)
       .maybeSingle();
     if (!lead) return { ok: false, error: 'Lead não encontrado' };
+    leadAutomationsBlocked = lead.automations_blocked;
     const leadDigits = lead.phone ? lead.phone.replace(/\D/g, '') : '';
     phoneDigits = leadDigits || typedDigits;
-    if (!phoneDigits) return { ok: false, error: 'O lead selecionado não tem telefone de WhatsApp.' };
+    if (!phoneDigits)
+      return { ok: false, error: 'O lead selecionado não tem telefone de WhatsApp.' };
   } else {
-    if (typedDigits.length < 10) return { ok: false, error: 'Informe um telefone de WhatsApp válido.' };
+    if (typedDigits.length < 10)
+      return { ok: false, error: 'Informe um telefone de WhatsApp válido.' };
     phoneDigits = typedDigits;
     const name = input.contactName?.trim() || phoneDigits;
     // Cria (ou unifica) um lead mínimo; o dono é quem iniciou a conversa.
@@ -1541,6 +1666,12 @@ export async function startConversation(
       assignedToOverride: user.id,
     });
     leadId = result.leadId;
+    const { data: ingestedLead } = await admin
+      .from('leads')
+      .select('automations_blocked')
+      .eq('id', leadId)
+      .single();
+    leadAutomationsBlocked = Boolean(ingestedLead?.automations_blocked);
   }
 
   // 2. Conversa por (channel, external_id): reaproveita a existente (sem roubar
@@ -1548,7 +1679,7 @@ export async function startConversation(
   //    instância de envio.
   const { data: existingConv } = await admin
     .from('conversations')
-    .select('id, assigned_to, lead_id, sector_id')
+    .select('id, assigned_to, lead_id, sector_id, lead:leads(automations_blocked)')
     .eq('channel', 'whatsapp')
     .eq('external_id', phoneDigits)
     .maybeSingle();
@@ -1558,6 +1689,10 @@ export async function startConversation(
     if (profile.role !== 'admin' && existingConv.sector_id !== profile.sector_id) {
       return { ok: false, error: 'Este contato já está em atendimento por outro setor' };
     }
+    const existingLead = existingConv.lead as { automations_blocked: boolean } | null;
+    const automationsBlocked = existingConv.lead_id
+      ? Boolean(existingLead?.automations_blocked)
+      : leadAutomationsBlocked;
     await admin
       .from('conversations')
       .update({
@@ -1567,6 +1702,15 @@ export async function startConversation(
         last_message_at: new Date().toISOString(),
         ...(existingConv.lead_id ? {} : { lead_id: leadId }),
         ...(existingConv.assigned_to ? {} : { assigned_to: user.id }),
+        ...(automationsBlocked
+          ? {
+              ai_muted: true,
+              ai_active: false,
+              ai_deactivated_at: new Date().toISOString(),
+              followup_stopped: true,
+              followup_stop_reason: 'automations_blocked',
+            }
+          : {}),
       })
       .eq('id', existingConv.id);
     conversationId = existingConv.id;
@@ -1584,12 +1728,22 @@ export async function startConversation(
           contact_name: input.contactName?.trim() || null,
           status: 'open',
           last_message_at: new Date().toISOString(),
+          ...(leadAutomationsBlocked
+            ? {
+                ai_muted: true,
+                ai_active: false,
+                ai_deactivated_at: new Date().toISOString(),
+                followup_stopped: true,
+                followup_stop_reason: 'automations_blocked',
+              }
+            : {}),
         },
         { onConflict: 'channel,external_id' },
       )
       .select('id')
       .single();
-    if (convErr || !conv) return { ok: false, error: convErr?.message ?? 'Falha ao abrir a conversa' };
+    if (convErr || !conv)
+      return { ok: false, error: convErr?.message ?? 'Falha ao abrir a conversa' };
     conversationId = conv.id;
   }
 

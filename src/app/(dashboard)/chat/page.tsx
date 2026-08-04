@@ -10,11 +10,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Chat · CRM Colégio Leibniz' };
 
-export default async function ChatPage(
-  props: {
-    searchParams: Promise<{ c?: string }>;
-  }
-) {
+export default async function ChatPage(props: { searchParams: Promise<{ c?: string }> }) {
   const searchParams = await props.searchParams;
   const session = await getSession();
   if (!session) redirect('/login');
@@ -36,8 +32,7 @@ export default async function ChatPage(
   ]);
 
   // WhatsApp funciona via UaZAPI (instância cadastrada/env) OU Cloud API da Meta.
-  const whatsappConfigured =
-    instances.length > 0 || isWhatsappConfigured();
+  const whatsappConfigured = instances.length > 0 || isWhatsappConfigured();
 
   return (
     <ChatLayout

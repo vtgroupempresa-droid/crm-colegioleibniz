@@ -16,10 +16,7 @@ import { parseSchoolFields } from './form-qualification';
 import { parseCampaignName, campaignAdCreative } from '@/lib/webhooks/campaign-parser';
 import { mergeTags } from '@/lib/webhooks/tag-rules';
 import { createNotification } from '@/actions/notifications';
-import {
-  handleLeibnizBotInbound,
-  isLeibnizBotHandling,
-} from '@/lib/whatsapp/leibniz-bot';
+import { handleLeibnizBotInbound, isLeibnizBotHandling } from '@/lib/whatsapp/leibniz-bot';
 import type { Database, Json } from '@/types/database';
 import {
   messagePreview,
@@ -653,9 +650,27 @@ export async function processWhatsappValue(admin: DbClient, value: unknown): Pro
       contactName,
     );
 
+    // A trava é do LEAD, não apenas de uma conversa. Uma nova conversa do
+    // mesmo telefone também respeita o bloqueio e nunca reinicia o bot.
+    const { data: automationControl } = lead?.id
+      ? await admin.from('leads').select('automations_blocked').eq('id', lead.id).maybeSingle()
+      : { data: null };
+    const effectiveBotEnabled = botEnabled && !automationControl?.automations_blocked;
+    if (automationControl?.automations_blocked) {
+      await admin
+        .from('conversations')
+        .update({
+          ai_muted: true,
+          ai_active: false,
+          followup_stopped: true,
+          followup_stop_reason: 'automations_blocked',
+        })
+        .eq('id', conv.id);
+    }
+
     const botHandling =
       instanceId !== null &&
-      (await isLeibnizBotHandling(admin, conv.id, conv.created, botEnabled));
+      (await isLeibnizBotHandling(admin, conv.id, conv.created, effectiveBotEnabled));
 
     // Parte 1: mensagem inbound do LEAD → reativa contato espontâneo, mas só se
     // NÃO for resposta a follow-up recente (checagem via conversationId). Antes
@@ -706,7 +721,7 @@ export async function processWhatsappValue(admin: DbClient, value: unknown): Pro
         from: msg.from,
         contactName,
         isNewConversation: conv.created,
-        botEnabled,
+        botEnabled: effectiveBotEnabled,
         via: { phoneNumberId: wabaId, accessToken: instanceToken },
         message: {
           type,
@@ -875,7 +890,7 @@ async function processInstagramEcho(admin: DbClient, event: InstagramMessaging):
     external_message_id: message.mid ?? null,
     direction: 'outbound',
     type,
-    content: message.text ?? (mediaUrl ? null : attachment?.payload?.url ?? ''),
+    content: message.text ?? (mediaUrl ? null : (attachment?.payload?.url ?? '')),
     media_url: mediaUrl,
     media_mime_type: mediaMime,
     status: 'sent',
@@ -1229,11 +1244,9 @@ export async function processLeadgen(
   else if (parsed.campaign_theme) values.utm_campaign = parsed.campaign_theme;
   if (adName) values.utm_content = adName;
 
-  const tags = mergeTags(
-    parsed.raw_tags,
-    parsed.campaign_theme ? [parsed.campaign_theme] : [],
-    ['lead-ads'],
-  );
+  const tags = mergeTags(parsed.raw_tags, parsed.campaign_theme ? [parsed.campaign_theme] : [], [
+    'lead-ads',
+  ]);
 
   // Snapshot desta entrada para o histórico append-only (leads.meta_entries):
   // a atribuição DESTE formulário. `kind` é definido no ingest ('first' no lead

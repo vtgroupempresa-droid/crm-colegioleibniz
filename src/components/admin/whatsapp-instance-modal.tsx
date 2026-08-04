@@ -91,8 +91,7 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
         return;
       }
       if (result.data.connected) {
-        const label =
-          result.data.profileName ?? result.data.phoneNumber ?? instance.name;
+        const label = result.data.profileName ?? result.data.phoneNumber ?? instance.name;
         toast.success(`Conectado: ${label}`);
       } else {
         toast.warning('Número ainda não respondeu — confira as credenciais da WABA.');
@@ -175,8 +174,8 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
               required
             />
             <span className="text-xs text-brand-500">
-              Só dígitos. É por ele que o webhook identifica a linha e o envio escolhe o
-              número — sem isso a linha não recebe nem envia.
+              Só dígitos. É por ele que o webhook identifica a linha e o envio escolhe o número —
+              sem isso a linha não recebe nem envia.
             </span>
           </div>
         )}
