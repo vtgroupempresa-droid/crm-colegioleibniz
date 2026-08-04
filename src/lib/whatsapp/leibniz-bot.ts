@@ -217,7 +217,7 @@ function sectorSlugFromMessage(interactiveId: string | null, content: string | n
       financeiro: ['financeiro', 'boleto', 'mensalidade', 'pagamento'],
       marketing: ['marketing', 'parceria', 'evento', 'divulgacao'],
     };
-    return terms[option.slug].some((term) => text.includes(term));
+    return (terms[option.slug] ?? []).some((term) => text.includes(term));
   });
   return match?.slug ?? null;
 }
