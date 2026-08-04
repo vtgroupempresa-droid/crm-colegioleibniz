@@ -909,8 +909,8 @@ export async function setLeadAutomationsBlocked(
   // qualquer escrita administrativa nas demais conversas do mesmo lead.
   const { data: conversation } = await supabase
     .from('conversations')
-    .eq('id', conversationId)
     .select('id, lead_id')
+    .eq('id', conversationId)
     .maybeSingle();
   if (!conversation) {
     return { ok: false, error: 'Sem permissão para alterar esta conversa.' };
