@@ -20,7 +20,7 @@ export default async function ChatPage(
   if (!session) redirect('/login');
 
   const supabase = createClient();
-  const [conversations, instances, { data: stages }] = await Promise.all([
+  const [conversations, instances, { data: stages }, { data: sectors }] = await Promise.all([
     getConversations(),
     listWhatsappInstanceBadges(),
     supabase
@@ -28,6 +28,11 @@ export default async function ChatPage(
       .select('slug, name, pipeline')
       .order('pipeline', { ascending: true })
       .order('position', { ascending: true }),
+    supabase
+      .from('sectors')
+      .select('id, slug, name, color')
+      .eq('is_active', true)
+      .order('name', { ascending: true }),
   ]);
 
   // WhatsApp funciona via UaZAPI (instância cadastrada/env) OU Cloud API da Meta.
@@ -42,6 +47,7 @@ export default async function ChatPage(
       whatsappConfigured={whatsappConfigured}
       instagramConfigured={isInstagramConfigured()}
       instances={instances}
+      sectors={sectors ?? []}
     />
   );
 }

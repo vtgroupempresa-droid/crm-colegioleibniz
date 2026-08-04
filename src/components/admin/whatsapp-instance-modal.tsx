@@ -194,7 +194,7 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
                 <strong className="block">Bot Leibniz + menu de setores</strong>
                 <span className="mt-0.5 block text-xs text-brand-500">
                   Mostra os setores no primeiro contato e continua o roteiro comercial quando a
-                  família escolhe Comercial e Matrículas.
+                  família escolhe Comercial &amp; Matrículas.
                 </span>
               </span>
             </span>

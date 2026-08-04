@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { advanceLeadOnFirstOutbound } from '@/lib/leads/stage-automation';
@@ -343,6 +344,146 @@ export async function setConversationStatus(
     return { ok: false, error: 'Sem permissão para alterar o status desta conversa.' };
   }
   return { ok: true, data: undefined };
+}
+
+const transferConversationSectorSchema = z.object({
+  conversationId: z.string().uuid(),
+  sectorId: z.string().uuid(),
+});
+
+export interface TransferConversationSectorResult {
+  sectorName: string;
+  remainsVisible: boolean;
+}
+
+/**
+ * Transfere uma conversa entre setores dentro do CRM.
+ *
+ * A leitura inicial usa o client autenticado, portanto a própria RLS comprova
+ * que a pessoa pode acessar a conversa de origem. A mutação usa service role
+ * somente depois dessa autorização explícita, porque a policy correta impede
+ * que um setor grave diretamente uma conversa em outro setor.
+ */
+export async function transferConversationSector(
+  rawInput: unknown,
+): Promise<ActionResult<TransferConversationSectorResult>> {
+  const parsed = transferConversationSectorSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'Conversa ou setor inválido.' };
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Sua sessão expirou. Entre novamente.' };
+
+  const [{ data: profile }, { data: conversation }, { data: targetSector }] = await Promise.all([
+    supabase
+      .from('user_profiles')
+      .select('id, name, role, sector_id')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('conversations')
+      .select(
+        'id, lead_id, sector_id, assigned_to, status, ai_active, ai_muted, followup_stopped, followup_stop_reason',
+      )
+      .eq('id', parsed.data.conversationId)
+      .maybeSingle(),
+    supabase
+      .from('sectors')
+      .select('id, name')
+      .eq('id', parsed.data.sectorId)
+      .eq('is_active', true)
+      .maybeSingle(),
+  ]);
+
+  if (!profile) return { ok: false, error: 'Perfil de acesso não encontrado.' };
+  if (!conversation) {
+    return { ok: false, error: 'Conversa não encontrada ou sem acesso pelo seu setor.' };
+  }
+  if (!targetSector) return { ok: false, error: 'O setor escolhido está inativo ou não existe.' };
+
+  const remainsVisible = profile.role === 'admin' || profile.sector_id === targetSector.id;
+  if (conversation.sector_id === targetSector.id) {
+    return { ok: true, data: { sectorName: targetSector.name, remainsVisible } };
+  }
+
+  const admin = createAdminClient();
+  let updateQuery = admin
+    .from('conversations')
+    .update({
+      sector_id: targetSector.id,
+      assigned_to: null,
+      status: 'open',
+      ai_active: false,
+      ai_muted: true,
+      followup_stopped: true,
+      followup_stop_reason: 'manual_stop',
+    })
+    .eq('id', conversation.id);
+  updateQuery = conversation.sector_id
+    ? updateQuery.eq('sector_id', conversation.sector_id)
+    : updateQuery.is('sector_id', null);
+  const { data: updated, error: updateError } = await updateQuery.select('id');
+  if (updateError || !updated?.length) {
+    return {
+      ok: false,
+      error: updateError?.message ?? 'A conversa mudou enquanto você transferia. Tente novamente.',
+    };
+  }
+
+  const { error: auditError } = await admin.from('conversation_sector_transfers').insert({
+    conversation_id: conversation.id,
+    from_sector_id: conversation.sector_id,
+    to_sector_id: targetSector.id,
+    source: 'user',
+    reason: `Transferência manual por ${profile.name || 'usuário do CRM'}`,
+    created_by: user.id,
+  });
+  if (auditError) {
+    await admin
+      .from('conversations')
+      .update({
+        sector_id: conversation.sector_id,
+        assigned_to: conversation.assigned_to,
+        status: conversation.status,
+        ai_active: conversation.ai_active,
+        ai_muted: conversation.ai_muted,
+        followup_stopped: conversation.followup_stopped,
+        followup_stop_reason: conversation.followup_stop_reason,
+      })
+      .eq('id', conversation.id);
+    return { ok: false, error: 'Não foi possível registrar a transferência. Nada foi alterado.' };
+  }
+
+  await admin
+    .from('conversation_bot_sessions')
+    .update({
+      state: 'human_handoff',
+      selected_sector_id: targetSector.id,
+      routed_at: new Date().toISOString(),
+      fallback_count: 0,
+    })
+    .eq('conversation_id', conversation.id);
+
+  const { data: targetUsers } = await admin
+    .from('user_profiles')
+    .select('id')
+    .eq('sector_id', targetSector.id);
+  if (targetUsers?.length) {
+    await admin.from('notifications').insert(
+      targetUsers.map((targetUser) => ({
+        user_id: targetUser.id,
+        type: 'sistema' as const,
+        title: `Conversa transferida · ${targetSector.name}`,
+        body: `${profile.name || 'A equipe'} encaminhou uma conversa para o seu setor.`,
+        lead_id: conversation.lead_id,
+      })),
+    );
+  }
+
+  revalidatePath('/chat');
+  return { ok: true, data: { sectorName: targetSector.name, remainsVisible } };
 }
 
 export interface SendMessageResult {

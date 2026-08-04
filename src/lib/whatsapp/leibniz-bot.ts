@@ -65,7 +65,7 @@ const SECTOR_OPTIONS = [
   {
     slug: 'comercial',
     id: 'sector:comercial',
-    title: 'Comercial e Matrículas',
+    title: 'Comercial & Matrículas',
     description: 'Vagas, visitas e proposta pedagógica',
   },
   {
@@ -327,7 +327,11 @@ async function transferToSector(
 ): Promise<{ id: string; name: string } | null> {
   const [{ data: sector }, { data: conversation }] = await Promise.all([
     admin.from('sectors').select('id, name').eq('slug', slug).eq('is_active', true).maybeSingle(),
-    admin.from('conversations').select('sector_id').eq('id', input.conversationId).maybeSingle(),
+    admin
+      .from('conversations')
+      .select('sector_id, assigned_to, status')
+      .eq('id', input.conversationId)
+      .maybeSingle(),
   ]);
   if (!sector) return null;
 
@@ -337,13 +341,27 @@ async function transferToSector(
     .eq('id', input.conversationId);
   if (error) return null;
 
-  await admin.from('conversation_sector_transfers').insert({
+  const { error: auditError } = await admin.from('conversation_sector_transfers').insert({
     conversation_id: input.conversationId,
     from_sector_id: conversation?.sector_id ?? null,
     to_sector_id: sector.id,
     source: 'bot',
     reason,
   });
+  if (auditError) {
+    console.error('[leibniz-bot] falha ao auditar transferência:', auditError.message);
+    if (conversation) {
+      await admin
+        .from('conversations')
+        .update({
+          sector_id: conversation.sector_id,
+          assigned_to: conversation.assigned_to,
+          status: conversation.status,
+        })
+        .eq('id', input.conversationId);
+    }
+    return null;
+  }
   await updateSession(admin, input.conversationId, {
     selected_sector_id: sector.id,
     routed_at: new Date().toISOString(),
@@ -360,15 +378,43 @@ async function handoff(
 ): Promise<void> {
   const sector = await transferToSector(admin, input, slug, reason);
   if (!sector) {
+    await updateSession(admin, input.conversationId, {
+      state: 'human_handoff',
+      fallback_count: 0,
+    });
+    const { data: fallbackSector } = await admin
+      .from('sectors')
+      .select('id, name')
+      .eq('slug', 'comercial')
+      .eq('is_active', true)
+      .maybeSingle();
+    if (fallbackSector) {
+      await notifySector(
+        admin,
+        fallbackSector.id,
+        'Falha no direcionamento automático',
+        `${input.contactName ?? input.from} precisa de atendimento manual. Motivo solicitado: ${reason}.`,
+        input.leadId,
+      );
+    }
     await sendBotText(
       admin,
       input,
       'human_handoff',
-      'Não consegui concluir o direcionamento agora. Nossa equipe comercial já foi avisada e vai continuar por aqui.',
+      'Não consegui concluir o direcionamento agora. A equipe de Comercial & Matrículas já foi avisada e vai continuar por aqui.',
     );
     return;
   }
 
+  await admin
+    .from('conversations')
+    .update({
+      ai_active: false,
+      ai_muted: true,
+      followup_stopped: true,
+      followup_stop_reason: 'manual_stop',
+    })
+    .eq('id', input.conversationId);
   await updateSession(admin, input.conversationId, {
     state: 'human_handoff',
     fallback_count: 0,
@@ -387,6 +433,25 @@ async function handoff(
     `${input.contactName ?? input.from} aguarda atendimento. Motivo: ${reason}.`,
     input.leadId,
   );
+}
+
+async function sendBotListOrHandoff(
+  admin: DbClient,
+  input: BotInbound,
+  state: LeibnizBotState,
+  list: OfficialInteractiveList,
+): Promise<boolean> {
+  const delivered = await sendBotList(admin, input, state, list);
+  if (!delivered) {
+    await handoff(
+      admin,
+      input,
+      'comercial',
+      'Falha ao exibir uma opção clicável do atendimento automático',
+      'O menu automático não pôde ser exibido. A equipe de Comercial & Matrículas foi avisada e continuará o atendimento por aqui.',
+    );
+  }
+  return delivered;
 }
 
 function differentialsFor(segment: string | undefined): string {
@@ -464,7 +529,7 @@ async function answerFaq(
         state: 'awaiting_sector',
         fallback_count: 0,
       });
-      await sendBotList(admin, input, 'awaiting_sector', SECTOR_MENU);
+      await sendBotListOrHandoff(admin, input, 'awaiting_sector', SECTOR_MENU);
       return;
     case 'faq:schedule':
       await sendBotText(admin, input, 'sales_awaiting_next_step', scheduleAnswer(context.segment));
@@ -502,14 +567,14 @@ async function answerFaq(
       );
       break;
     default:
-      await sendBotList(admin, input, 'sales_awaiting_faq', FAQ_MENU);
+      await sendBotListOrHandoff(admin, input, 'sales_awaiting_faq', FAQ_MENU);
       return;
   }
   await updateSession(admin, input.conversationId, {
     state: 'sales_awaiting_next_step',
     fallback_count: 0,
   });
-  await sendBotList(admin, input, 'sales_awaiting_next_step', NEXT_STEP_MENU);
+  await sendBotListOrHandoff(admin, input, 'sales_awaiting_next_step', NEXT_STEP_MENU);
 }
 
 async function fallback(
@@ -538,7 +603,7 @@ async function fallback(
     session.state as LeibnizBotState,
     'Desculpa, não entendi bem 🙏 Escolha uma das opções abaixo ou reformule sua mensagem.',
   );
-  await sendBotList(admin, input, session.state as LeibnizBotState, menu);
+  await sendBotListOrHandoff(admin, input, session.state as LeibnizBotState, menu);
 }
 
 /** Decide se a notificação humana deve ser suprimida enquanto o bot conduz o fluxo. */
@@ -581,7 +646,7 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
       .single();
     if (!created.data) return;
     session = created.data;
-    await sendBotList(admin, input, 'awaiting_sector', SECTOR_MENU);
+    await sendBotListOrHandoff(admin, input, 'awaiting_sector', SECTOR_MENU);
     return;
   }
 
@@ -647,7 +712,7 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
       'sales_awaiting_interest',
       `${responsibleName}, antes de mais nada, deixa eu te contar rapidinho quem é o Leibniz 🎓\n\nSomos uma Escola de Resultados de Alto Impacto, com intensificação em Matemática e Língua Portuguesa, Projeto Bilíngue, Educação Financeira, Teatro, Robótica, Banca Literária e acompanhamento constante da família.`,
     );
-    await sendBotList(admin, input, 'sales_awaiting_interest', INTEREST_MENU);
+    await sendBotListOrHandoff(admin, input, 'sales_awaiting_interest', INTEREST_MENU);
     return;
   }
 
@@ -657,7 +722,7 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
         state: 'awaiting_sector',
         fallback_count: 0,
       });
-      await sendBotList(admin, input, 'awaiting_sector', SECTOR_MENU);
+      await sendBotListOrHandoff(admin, input, 'awaiting_sector', SECTOR_MENU);
       return;
     }
     const interest = choice?.startsWith('sales:') ? choice.slice('sales:'.length) : null;
@@ -670,7 +735,7 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
       context: { ...context, interest } as unknown as Json,
       fallback_count: 0,
     });
-    await sendBotList(admin, input, 'sales_awaiting_segment', SEGMENT_MENU);
+    await sendBotListOrHandoff(admin, input, 'sales_awaiting_segment', SEGMENT_MENU);
     return;
   }
 
@@ -722,7 +787,7 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
       fallback_count: 0,
     });
     await sendBotText(admin, input, 'sales_awaiting_next_step', differentialsFor(context.segment));
-    await sendBotList(admin, input, 'sales_awaiting_next_step', NEXT_STEP_MENU);
+    await sendBotListOrHandoff(admin, input, 'sales_awaiting_next_step', NEXT_STEP_MENU);
     return;
   }
 
@@ -746,7 +811,7 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
         state: 'sales_awaiting_faq',
         fallback_count: 0,
       });
-      await sendBotList(admin, input, 'sales_awaiting_faq', FAQ_MENU);
+      await sendBotListOrHandoff(admin, input, 'sales_awaiting_faq', FAQ_MENU);
       return;
     }
     if (choice === 'next:visit') {

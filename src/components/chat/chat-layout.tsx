@@ -18,6 +18,7 @@ import {
   sendMessage,
   sendTemplateMessage,
   setConversationStatus,
+  transferConversationSector,
   type ChannelUnreadCounts,
   type ConversationThread,
 } from '@/actions/conversations';
@@ -38,6 +39,13 @@ export interface ChatStageOption {
   pipeline: string;
 }
 
+export interface ChatSectorOption {
+  id: string;
+  slug: string;
+  name: string;
+  color: string;
+}
+
 interface ChatLayoutProps {
   initialConversations: ConversationListItem[];
   initialConversationId: string | null;
@@ -46,6 +54,7 @@ interface ChatLayoutProps {
   instagramConfigured: boolean;
   /** Instâncias de WhatsApp ativas (sub-filtro da tab WhatsApp — Fase 15). */
   instances: WhatsappInstanceBadge[];
+  sectors: ChatSectorOption[];
 }
 
 type StatusFilter = ConversationStatus | 'all';
@@ -58,6 +67,7 @@ export function ChatLayout({
   whatsappConfigured,
   instagramConfigured,
   instances,
+  sectors,
 }: ChatLayoutProps) {
   const [conversations, setConversations] = useState<ConversationListItem[]>(initialConversations);
   const [selectedId, setSelectedId] = useState<string | null>(initialConversationId);
@@ -275,6 +285,27 @@ export function ChatLayout({
     void refreshConversations();
   }
 
+  async function handleTransferSector(sectorId: string) {
+    if (!selectedId || !thread || sectorId === thread.conversation.sector_id) return;
+    const result = await transferConversationSector({
+      conversationId: selectedId,
+      sectorId,
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(`Conversa encaminhada para ${result.data.sectorName}.`);
+    if (!result.data.remainsVisible) {
+      setSelectedId(null);
+      setThread(null);
+    } else {
+      await loadThread(selectedId);
+    }
+    void refreshConversations();
+    void refreshUnread();
+  }
+
   const nothingConfigured = !whatsappConfigured && !instagramConfigured;
   const isEmpty = conversations.length === 0;
 
@@ -329,6 +360,8 @@ export function ChatLayout({
             onSend={handleSend}
             onSendTemplate={handleSendTemplate}
             onSetStatus={handleSetStatus}
+            sectors={sectors}
+            onTransferSector={handleTransferSector}
             onOpenLead={() => thread.lead && setDrawerLeadId(thread.lead.id)}
             onOpenLeadPanel={() => setMobilePanelOpen(true)}
             onBack={() => setSelectedId(null)}

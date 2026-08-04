@@ -70,6 +70,8 @@ interface ConversationViewProps {
   /** Envia um template com variáveis preenchidas; true = saiu (fecha o modal). */
   onSendTemplate: (templateId: string, values: Record<string, string>) => Promise<boolean>;
   onSetStatus: (status: ConversationStatus) => void;
+  sectors: Array<{ id: string; slug: string; name: string; color: string }>;
+  onTransferSector: (sectorId: string) => Promise<void>;
   onOpenLead: () => void;
   /** Mobile: abre o painel/ficha do lead (substitui a 3ª coluna). */
   onOpenLeadPanel?: () => void;
@@ -408,6 +410,8 @@ export function ConversationView({
   onSend,
   onSendTemplate,
   onSetStatus,
+  sectors,
+  onTransferSector,
   onOpenLead,
   onOpenLeadPanel,
   onBack,
@@ -415,6 +419,7 @@ export function ConversationView({
   onChanged,
 }: ConversationViewProps) {
   const [text, setText] = useState('');
+  const [transferringSector, setTransferringSector] = useState<string | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
   // Emojis usados recentemente (persistidos no navegador) — viram a 1ª seção do picker.
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
@@ -598,6 +603,18 @@ export function ConversationView({
   const disconnected = isInstanceDisconnected(instance);
   // Reagir com emoji só existe no WhatsApp (oficial e UaZAPI), com número conectado.
   const canReact = channel === 'whatsapp' && !disconnected;
+
+  const currentSector = sectors.find((sector) => sector.id === conversation.sector_id) ?? null;
+
+  async function handleTransferSector(sectorId: string) {
+    if (sectorId === conversation.sector_id || transferringSector) return;
+    setTransferringSector(sectorId);
+    try {
+      await onTransferSector(sectorId);
+    } finally {
+      setTransferringSector(null);
+    }
+  }
 
   /** Envia a reação e recarrega a thread (o emoji ancora na bolha alvo). */
   async function handleReact(message: Message, emoji: string) {
@@ -954,6 +971,50 @@ export function ConversationView({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Roteamento operacional: um clique transfere, encerra automações desta
+          conversa e faz a RLS entregá-la somente ao setor de destino. */}
+      <div className="flex min-h-11 items-center gap-2 border-b border-brand-100 bg-white px-3 py-1.5 sm:px-4">
+        <span className="hidden shrink-0 text-[11px] font-semibold uppercase tracking-wide text-brand-400 sm:inline">
+          Encaminhar
+        </span>
+        <div
+          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto"
+          style={{ scrollbarWidth: 'none' }}
+          aria-label="Encaminhar conversa para outro setor"
+        >
+          {sectors.map((sector) => {
+            const active = sector.id === conversation.sector_id;
+            const loading = transferringSector === sector.id;
+            return (
+              <button
+                key={sector.id}
+                type="button"
+                onClick={() => void handleTransferSector(sector.id)}
+                disabled={active || transferringSector !== null}
+                title={active ? `Setor atual: ${sector.name}` : `Encaminhar para ${sector.name}`}
+                className={cn(
+                  'focus-ring flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors disabled:cursor-default',
+                  active
+                    ? 'border-brand-700 bg-brand-700 text-white'
+                    : 'border-brand-200 bg-white text-brand-600 hover:border-brand-300 hover:bg-brand-50',
+                  transferringSector !== null && !loading && !active && 'opacity-45',
+                )}
+              >
+                <span
+                  className={cn('h-2 w-2 rounded-full', active && 'ring-2 ring-white/40')}
+                  style={{ backgroundColor: active ? '#fff' : sector.color }}
+                  aria-hidden="true"
+                />
+                {loading ? 'Encaminhando…' : sector.name}
+              </button>
+            );
+          })}
+        </div>
+        {currentSector && (
+          <span className="sr-only">Setor atual: {currentSector.name}</span>
+        )}
       </div>
 
       {/* Faixa compacta do lead — mobile (substitui a 3ª coluna). */}
