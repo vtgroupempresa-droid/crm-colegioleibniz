@@ -58,7 +58,7 @@ async function findOrCreateLead(
   channel: ChatChannel,
   externalId: string,
   contact: ContactInfo,
-): Promise<{ id: string; assignedTo: string | null; created: boolean }> {
+): Promise<{ id: string; assignedTo: string | null }> {
   const phone = channel === 'whatsapp' ? (contact.phone ?? externalId) : (contact.phone ?? null);
   const instagramHandle = channel === 'instagram' ? (contact.instagram ?? null) : null;
   const instagramUserId = channel === 'instagram' ? externalId : null;
@@ -94,7 +94,7 @@ async function findOrCreateConversation(
   wabaId: string | null,
   whatsappInstanceId: string | null = null,
   contactName: string | null = null,
-): Promise<{ id: string; assignedTo: string | null }> {
+): Promise<{ id: string; assignedTo: string | null; created: boolean }> {
   const { data: existing } = await admin
     .from('conversations')
     .select('id, assigned_to, whatsapp_instance_id, contact_name, lead_id')
