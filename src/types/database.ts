@@ -418,6 +418,129 @@ export type Database = {
           },
         ]
       }
+      conversation_bot_sessions: {
+        Row: {
+          context: Json
+          conversation_id: string
+          created_at: string
+          fallback_count: number
+          last_bot_message_at: string | null
+          routed_at: string | null
+          selected_sector_id: string | null
+          state: string
+          updated_at: string
+          whatsapp_instance_id: string | null
+        }
+        Insert: {
+          context?: Json
+          conversation_id: string
+          created_at?: string
+          fallback_count?: number
+          last_bot_message_at?: string | null
+          routed_at?: string | null
+          selected_sector_id?: string | null
+          state?: string
+          updated_at?: string
+          whatsapp_instance_id?: string | null
+        }
+        Update: {
+          context?: Json
+          conversation_id?: string
+          created_at?: string
+          fallback_count?: number
+          last_bot_message_at?: string | null
+          routed_at?: string | null
+          selected_sector_id?: string | null
+          state?: string
+          updated_at?: string
+          whatsapp_instance_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_bot_sessions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: true
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_bot_sessions_selected_sector_id_fkey"
+            columns: ["selected_sector_id"]
+            isOneToOne: false
+            referencedRelation: "sectors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_bot_sessions_whatsapp_instance_id_fkey"
+            columns: ["whatsapp_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_sector_transfers: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          created_by: string | null
+          from_sector_id: string | null
+          id: string
+          reason: string | null
+          source: string
+          to_sector_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          created_by?: string | null
+          from_sector_id?: string | null
+          id?: string
+          reason?: string | null
+          source: string
+          to_sector_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          created_by?: string | null
+          from_sector_id?: string | null
+          id?: string
+          reason?: string | null
+          source?: string
+          to_sector_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_sector_transfers_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_sector_transfers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_sector_transfers_from_sector_id_fkey"
+            columns: ["from_sector_id"]
+            isOneToOne: false
+            referencedRelation: "sectors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_sector_transfers_to_sector_id_fkey"
+            columns: ["to_sector_id"]
+            isOneToOne: false
+            referencedRelation: "sectors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboard_config: {
         Row: {
           ano: number
@@ -1528,6 +1651,7 @@ export type Database = {
       }
       whatsapp_instances: {
         Row: {
+          bot_enabled: boolean
           color: string | null
           created_at: string
           id: string
@@ -1544,6 +1668,7 @@ export type Database = {
           sector_id: string | null
         }
         Insert: {
+          bot_enabled?: boolean
           color?: string | null
           created_at?: string
           id?: string
@@ -1560,6 +1685,7 @@ export type Database = {
           sector_id?: string | null
         }
         Update: {
+          bot_enabled?: boolean
           color?: string | null
           created_at?: string
           id?: string

@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { MetaPanels } from '@/components/integrations/meta-panels';
 import { MetaStatusCard } from '@/components/integrations/meta-status-card';
 import { MetaLiveStatusCard } from '@/components/integrations/meta-live-status-card';
+import { listWhatsappInstances } from '@/actions/whatsapp-instances';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Meta · Integrações' };
@@ -18,9 +19,10 @@ export default async function MetaIntegrationPage() {
 
   const admin = createAdminClient();
   const status = getMetaConfigStatus();
-  const [webhookStatus, integrationStatus] = await Promise.all([
+  const [webhookStatus, integrationStatus, whatsappInstances] = await Promise.all([
     getMetaWebhookStatus(admin),
     getMetaIntegrationStatus(admin),
+    listWhatsappInstances(),
   ]);
 
   return (
@@ -40,7 +42,7 @@ export default async function MetaIntegrationPage() {
 
       <MetaLiveStatusCard status={integrationStatus} />
 
-      <MetaPanels status={status} />
+      <MetaPanels status={status} whatsappInstances={whatsappInstances} />
     </section>
   );
 }

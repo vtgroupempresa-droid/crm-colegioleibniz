@@ -38,6 +38,7 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
   const [token, setToken] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [phoneNumberId, setPhoneNumberId] = useState('');
+  const [botEnabled, setBotEnabled] = useState(false);
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
     setToken('');
     setPhoneNumber(instance?.phone_number ?? '');
     setPhoneNumberId(instance?.phone_number_id ?? '');
+    setBotEnabled(instance?.bot_enabled ?? false);
     setIsActive(instance?.is_active ?? true);
   }, [open, instance]);
 
@@ -62,6 +64,7 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
       instanceToken: token.trim() || null,
       phoneNumber: phoneNumber.trim() || null,
       phoneNumberId: phoneNumberId.trim() || null,
+      botEnabled: provider === 'official' && botEnabled,
       isActive,
     };
     startTransition(async () => {
@@ -176,6 +179,26 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
               número — sem isso a linha não recebe nem envia.
             </span>
           </div>
+        )}
+
+        {provider === 'official' && (
+          <label className="rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm text-brand-700">
+            <span className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={botEnabled}
+                onChange={(e) => setBotEnabled(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-brand-700"
+              />
+              <span>
+                <strong className="block">Bot Leibniz + menu de setores</strong>
+                <span className="mt-0.5 block text-xs text-brand-500">
+                  Mostra os setores no primeiro contato e continua o roteiro comercial quando a
+                  família escolhe Comercial e Matrículas.
+                </span>
+              </span>
+            </span>
+          </label>
         )}
 
         <label className="flex items-center gap-2 text-sm text-brand-700">

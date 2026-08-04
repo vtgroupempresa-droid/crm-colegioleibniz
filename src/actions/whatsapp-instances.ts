@@ -41,6 +41,7 @@ const instanceSchema = z.object({
     .regex(/^\d{5,25}$/, 'phone_number_id é só dígitos (copie da Meta)')
     .nullable()
     .optional(),
+  botEnabled: z.boolean().default(false),
   isActive: z.boolean().default(true),
 });
 
@@ -55,6 +56,7 @@ export interface WhatsappInstanceRow {
   provider: string;
   phone_number: string | null;
   phone_number_id: string | null;
+  bot_enabled: boolean;
   is_active: boolean;
   is_connected: boolean;
   last_connected_at: string | null;
@@ -91,6 +93,7 @@ export async function listWhatsappInstances(): Promise<WhatsappInstanceRow[]> {
     provider: row.provider,
     phone_number: row.phone_number,
     phone_number_id: row.phone_number_id,
+    bot_enabled: row.bot_enabled,
     is_active: row.is_active,
     is_connected: row.is_connected,
     last_connected_at: row.last_connected_at,
@@ -135,6 +138,7 @@ export async function createWhatsappInstance(
       instance_token: d.instanceToken?.trim() || null,
       phone_number: d.phoneNumber?.trim() || null,
       phone_number_id: d.phoneNumberId?.trim() || null,
+      bot_enabled: d.botEnabled,
       is_active: d.isActive,
     })
     .select('id')
@@ -171,6 +175,7 @@ export async function updateWhatsappInstance(
       provider: d.provider,
       phone_number: d.phoneNumber?.trim() || null,
       phone_number_id: d.phoneNumberId?.trim() || null,
+      bot_enabled: d.botEnabled,
       is_active: d.isActive,
       // Token vazio na edição = mantém o atual (não dá para reexibir o segredo).
       ...(token ? { instance_token: token } : {}),

@@ -45,6 +45,80 @@ export interface OfficialWhatsappStatus {
   error: string | null;
 }
 
+export interface OfficialInteractiveListRow {
+  id: string;
+  title: string;
+  description?: string;
+}
+
+export interface OfficialInteractiveList {
+  body: string;
+  button: string;
+  header?: string;
+  footer?: string;
+  sections: Array<{
+    title?: string;
+    rows: OfficialInteractiveListRow[];
+  }>;
+}
+
+/**
+ * Envia uma lista clicável pela Cloud API. Listas suportam até dez opções e
+ * são o formato oficial adequado para o menu com os sete setores da escola.
+ */
+export async function sendOfficialInteractiveList(
+  to: string,
+  list: OfficialInteractiveList,
+  via?: OfficialVia,
+): Promise<MetaResult<{ messageId: string | null }>> {
+  const { phoneNumberId, accessToken } = resolveOfficialVia(via);
+  if (!isConfigured(phoneNumberId) || !isConfigured(accessToken)) {
+    return { ok: false, error: 'WhatsApp não configurado', skipped: true };
+  }
+
+  const digits = to.replace(/\D/g, '');
+  if (digits.length < 10) return { ok: false, error: 'Telefone inválido' };
+
+  const rows = list.sections.flatMap((section) => section.rows);
+  if (rows.length === 0 || rows.length > 10) {
+    return { ok: false, error: 'A lista do WhatsApp precisa ter entre 1 e 10 opções' };
+  }
+
+  try {
+    const res = await fetch(`${META_GRAPH_BASE}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: digits,
+        type: 'interactive',
+        interactive: {
+          type: 'list',
+          ...(list.header ? { header: { type: 'text', text: list.header } } : {}),
+          body: { text: list.body },
+          ...(list.footer ? { footer: { text: list.footer } } : {}),
+          action: {
+            button: list.button,
+            sections: list.sections,
+          },
+        },
+      }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      messages?: { id?: string }[];
+      error?: { message?: string };
+    };
+    if (!res.ok) return { ok: false, error: json.error?.message ?? `HTTP ${res.status}` };
+    return { ok: true, data: { messageId: json.messages?.[0]?.id ?? null } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Falha de rede' };
+  }
+}
+
 /**
  * Consulta o número oficial na Graph API (GET {phone_number_id}) para confirmar
  * que o token e o número estão válidos antes de enviar. Nunca lança.

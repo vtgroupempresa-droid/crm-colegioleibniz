@@ -30,8 +30,8 @@ interface WhatsappInstancesManagerProps {
 }
 
 /**
- * Gestão de instâncias de WhatsApp no /admin (Fase 15). Cada instância é um
- * número conectado (UaZAPI via QR code ou, futuramente, a API oficial). O
+ * Gestão das linhas de WhatsApp oficial. Cada instância é um número da Cloud
+ * API da Meta. O
  * badge colorido com a sigla identifica a instância nas conversas do /chat.
  */
 export function WhatsappInstancesManager({ instances, webhookUrl }: WhatsappInstancesManagerProps) {
@@ -76,7 +76,7 @@ export function WhatsappInstancesManager({ instances, webhookUrl }: WhatsappInst
       if (connected && loggedIn) {
         toast.success(`Conectado${profileName ? ` · ${profileName}` : ''}`);
       } else {
-        toast.warning('Instância desconectada — gere o QR code e escaneie no WhatsApp.');
+        toast.warning('Linha desconectada — confira o token permanente e o Phone Number ID.');
       }
       router.refresh();
     });
@@ -96,7 +96,7 @@ export function WhatsappInstancesManager({ instances, webhookUrl }: WhatsappInst
 
       {instances.length === 0 ? (
         <p className="mt-3 text-sm text-brand-400">
-          Nenhuma instância ainda. Crie uma com o token gerado na UaZAPI.
+          Nenhuma linha oficial ainda. Cadastre o número e o token permanente da Meta.
         </p>
       ) : (
         <div className="mt-3 overflow-x-auto">
@@ -128,6 +128,11 @@ export function WhatsappInstancesManager({ instances, webhookUrl }: WhatsappInst
                         <p className="text-[11px] text-brand-400">
                           Token: {i.hasToken ? i.tokenPreview : 'não cadastrado'}
                         </p>
+                        {i.bot_enabled && (
+                          <p className="mt-0.5 text-[11px] font-semibold text-emerald-700">
+                            Bot e roteamento ativos
+                          </p>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -187,15 +192,12 @@ export function WhatsappInstancesManager({ instances, webhookUrl }: WhatsappInst
       )}
 
       <div className="mt-4 rounded-md border border-brand-100 bg-brand-50 px-3 py-2 text-xs text-brand-600">
-        <p className="font-semibold uppercase tracking-wide">Como configurar o webhook na UaZAPI</p>
+        <p className="font-semibold uppercase tracking-wide">Webhook da API oficial</p>
         <p className="mt-1">
-          Cada instância precisa enviar os eventos <code>messages</code> e <code>connection</code>{' '}
-          para <code className="break-all">{webhookUrl}</code> (com{' '}
-          <code>excludeMessages: wasSentByApi</code>). Use o botão{' '}
-          <strong>&quot;Configurar webhook&quot;</strong> ao editar a instância — ele registra a URL
-          automaticamente via <code>POST /webhook</code> — ou acesse{' '}
-          <code>/api/whatsapp/webhook/setup</code> logado como admin para configurar todas de uma
-          vez.
+          No painel do app da Meta, assine o campo <code>messages</code> da conta do WhatsApp e use{' '}
+          <code className="break-all">{webhookUrl}</code> como URL de callback. O token de
+          verificação é o valor seguro de <code>META_VERIFY_TOKEN</code>; ele não é exibido nesta
+          tela.
         </p>
       </div>
 

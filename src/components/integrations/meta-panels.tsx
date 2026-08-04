@@ -9,9 +9,12 @@ import { Button } from '@/components/ui/button';
 import { getLeadForms, previewTestLeadAds, type TestLeadPreview } from '@/actions/meta-integrations';
 import type { LeadForm } from '@/lib/meta/client';
 import type { MetaConfigStatus } from '@/lib/meta/config';
+import { WhatsappInstancesManager } from '@/components/admin/whatsapp-instances-manager';
+import type { WhatsappInstanceRow } from '@/actions/whatsapp-instances';
 
 interface MetaPanelsProps {
   status: MetaConfigStatus;
+  whatsappInstances: WhatsappInstanceRow[];
 }
 
 function StatusBadge({ ok }: { ok: boolean }) {
@@ -154,21 +157,32 @@ function LeadAdsTab({ status }: { status: MetaConfigStatus }) {
   );
 }
 
-function WhatsappTab({ status }: { status: MetaConfigStatus }) {
+function WhatsappTab({
+  status,
+  instances,
+}: {
+  status: MetaConfigStatus;
+  instances: WhatsappInstanceRow[];
+}) {
+  const webhookUrl = useWebhookUrl();
+  const connectedInstance = instances.find((instance) => instance.is_connected);
+  const whatsappConnected = status.whatsappConfigured || Boolean(connectedInstance);
   return (
     <div className="flex flex-col gap-4">
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex items-center justify-between">
           <p className="font-medium text-brand-700">Conexão do WhatsApp</p>
-          <StatusBadge ok={status.whatsappConfigured} />
+          <StatusBadge ok={whatsappConnected} />
         </div>
         <div className="flex flex-col gap-1 text-xs text-brand-500">
           <span>
             Phone Number ID:{' '}
-            <code className="text-brand-700">{status.whatsappPhoneNumberId ?? 'pendente'}</code>
+            <code className="text-brand-700">
+              {status.whatsappPhoneNumberId ?? connectedInstance?.phone_number_id ?? 'pendente'}
+            </code>
           </span>
         </div>
-        {!status.whatsappConfigured ? (
+        {!whatsappConnected ? (
           <NotConfiguredHint />
         ) : (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -177,6 +191,15 @@ function WhatsappTab({ status }: { status: MetaConfigStatus }) {
             whatsapp_business_messaging + whatsapp_business_management).
           </p>
         )}
+      </Card>
+      <Card className="p-4">
+        <div className="mb-3">
+          <p className="font-medium text-brand-700">Número oficial e automação</p>
+          <p className="mt-1 text-xs text-brand-500">
+            Gerencie a linha oficial, o bot institucional e o menu automático de setores.
+          </p>
+        </div>
+        <WhatsappInstancesManager instances={instances} webhookUrl={webhookUrl} />
       </Card>
     </div>
   );
@@ -214,10 +237,14 @@ function InstagramTab({ status }: { status: MetaConfigStatus }) {
   );
 }
 
-export function MetaPanels({ status }: MetaPanelsProps) {
+export function MetaPanels({ status, whatsappInstances }: MetaPanelsProps) {
   const tabs: TabItem[] = [
     { id: 'leadads', label: 'Lead Ads', content: <LeadAdsTab status={status} /> },
-    { id: 'whatsapp', label: 'WhatsApp', content: <WhatsappTab status={status} /> },
+    {
+      id: 'whatsapp',
+      label: 'WhatsApp',
+      content: <WhatsappTab status={status} instances={whatsappInstances} />,
+    },
     { id: 'instagram', label: 'Instagram', content: <InstagramTab status={status} /> },
   ];
   return <Tabs items={tabs} />;

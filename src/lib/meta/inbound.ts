@@ -16,6 +16,10 @@ import { parseSchoolFields } from './form-qualification';
 import { parseCampaignName, campaignAdCreative } from '@/lib/webhooks/campaign-parser';
 import { mergeTags } from '@/lib/webhooks/tag-rules';
 import { createNotification } from '@/actions/notifications';
+import {
+  handleLeibnizBotInbound,
+  isLeibnizBotHandling,
+} from '@/lib/whatsapp/leibniz-bot';
 import type { Database, Json } from '@/types/database';
 import {
   messagePreview,
@@ -54,7 +58,7 @@ async function findOrCreateLead(
   channel: ChatChannel,
   externalId: string,
   contact: ContactInfo,
-): Promise<{ id: string; assignedTo: string | null }> {
+): Promise<{ id: string; assignedTo: string | null; created: boolean }> {
   const phone = channel === 'whatsapp' ? (contact.phone ?? externalId) : (contact.phone ?? null);
   const instagramHandle = channel === 'instagram' ? (contact.instagram ?? null) : null;
   const instagramUserId = channel === 'instagram' ? externalId : null;
@@ -114,7 +118,7 @@ async function findOrCreateConversation(
     if (Object.keys(patch).length > 0) {
       await admin.from('conversations').update(patch).eq('id', existing.id);
     }
-    return { id: existing.id, assignedTo: existing.assigned_to ?? assignedTo };
+    return { id: existing.id, assignedTo: existing.assigned_to ?? assignedTo, created: false };
   }
 
   // UPSERT em (channel, external_id): evita "duplicate key" quando dois eventos
@@ -141,7 +145,7 @@ async function findOrCreateConversation(
     .single();
 
   if (error || !created) throw new Error(error?.message ?? 'Falha ao criar conversa');
-  return { id: created.id, assignedTo: created.assigned_to };
+  return { id: created.id, assignedTo: created.assigned_to, created: true };
 }
 
 /** Sobe uma mídia baixada para o bucket chat-media e devolve a URL pública. */
@@ -199,6 +203,7 @@ interface InboundMessageInput {
   metadata: MessageMetadata | null;
   contactName: string | null;
   channel: ChatChannel;
+  notifyAssigned?: boolean;
 }
 
 /**
@@ -239,7 +244,7 @@ async function saveInboundMessage(admin: DbClient, input: InboundMessageInput): 
     .update({ last_message_at: new Date().toISOString(), status: 'open' })
     .eq('id', input.conversationId);
 
-  if (input.assignedTo) {
+  if (input.notifyAssigned !== false && input.assignedTo) {
     const preview = messagePreview(input.type, input.content);
     await createNotification(
       input.assignedTo,
@@ -499,15 +504,17 @@ export async function processWhatsappValue(admin: DbClient, value: unknown): Pro
   // WABA só baixa com o token daquela WABA.
   let instanceId: string | null = null;
   let instanceToken: string | null = null;
+  let botEnabled = false;
   if (wabaId) {
     const { data: instance } = await admin
       .from('whatsapp_instances')
-      .select('id, name, is_active, instance_token')
+      .select('id, name, is_active, instance_token, bot_enabled')
       .eq('phone_number_id', wabaId)
       .maybeSingle();
     if (instance?.is_active) {
       instanceId = instance.id;
       instanceToken = instance.instance_token;
+      botEnabled = instance.bot_enabled;
     }
   }
 
@@ -646,6 +653,10 @@ export async function processWhatsappValue(admin: DbClient, value: unknown): Pro
       contactName,
     );
 
+    const botHandling =
+      instanceId !== null &&
+      (await isLeibnizBotHandling(admin, conv.id, conv.created, botEnabled));
+
     // Parte 1: mensagem inbound do LEAD → reativa contato espontâneo, mas só se
     // NÃO for resposta a follow-up recente (checagem via conversationId). Antes
     // de salvar esta mensagem, para ler a última mensagem anterior da conversa.
@@ -684,7 +695,26 @@ export async function processWhatsappValue(admin: DbClient, value: unknown): Pro
       metadata,
       contactName,
       channel: 'whatsapp',
+      notifyAssigned: !botHandling,
     });
+
+    if (instanceId && botHandling) {
+      await handleLeibnizBotInbound(admin, {
+        conversationId: conv.id,
+        leadId: lead?.id ?? null,
+        whatsappInstanceId: instanceId,
+        from: msg.from,
+        contactName,
+        isNewConversation: conv.created,
+        botEnabled,
+        via: { phoneNumberId: wabaId, accessToken: instanceToken },
+        message: {
+          type,
+          content,
+          interactiveId: metadata?.interactive?.id ?? null,
+        },
+      });
+    }
   }
 }
 
