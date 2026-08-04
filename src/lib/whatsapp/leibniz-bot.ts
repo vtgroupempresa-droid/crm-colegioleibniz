@@ -4,8 +4,8 @@ import {
   sendOfficialInteractiveList,
   sendOfficialMessage,
   type OfficialInteractiveList,
-  type OfficialVia,
 } from '@/lib/whatsapp/official-client';
+import type { OfficialVia } from '@/lib/meta/client';
 import type { Database, Json, Tables } from '@/types/database';
 import type { MessageType } from '@/types/chat';
 
