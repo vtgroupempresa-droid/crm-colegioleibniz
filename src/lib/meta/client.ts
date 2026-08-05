@@ -46,6 +46,8 @@ interface OutboundMessage {
   type: MessageType;
   content?: string | null;
   mediaUrl?: string | null;
+  /** ID externo da mensagem citada (context.message_id da Cloud API). */
+  replyToExternalId?: string | null;
 }
 
 export async function graphRequest<T>(
@@ -67,7 +69,12 @@ export async function graphRequest<T>(
 
 /** Monta o objeto de mensagem do WhatsApp conforme o tipo. */
 function whatsappBody(to: string, msg: OutboundMessage): Record<string, unknown> {
-  const base = { messaging_product: 'whatsapp', to };
+  const base = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    ...(msg.replyToExternalId ? { context: { message_id: msg.replyToExternalId } } : {}),
+  };
   switch (msg.type) {
     case 'image':
       return { ...base, type: 'image', image: { link: msg.mediaUrl } };

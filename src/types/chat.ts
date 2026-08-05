@@ -69,6 +69,18 @@ export interface SharedContactCard {
 }
 
 export interface MessageMetadata {
+  /** Resposta/citação de outra mensagem da mesma conversa. */
+  reply?: {
+    /** UUID local, quando a mensagem citada existe no histórico do CRM. */
+    targetMessageId: string | null;
+    /** ID do provider (wamid/mid), usado pelo WhatsApp para a resposta nativa. */
+    targetExternalId: string;
+    /** Direção da mensagem citada — define "Família" ou "Equipe Leibniz". */
+    direction: MessageDirection | null;
+    /** Tipo e resumo congelados para a citação continuar legível no histórico. */
+    type: string;
+    preview: string;
+  };
   /** type='contact': contatos compartilhados. */
   contacts?: SharedContactCard[];
   /** type='location': coordenadas e rótulos. */
@@ -126,6 +138,12 @@ export function messagePreview(type: string, content: string | null): string {
   const label = MESSAGE_TYPE_PREVIEW[type as MessageType];
   if (type === 'reaction' && content?.trim()) return `Reagiu com ${content.trim()}`;
   return label ?? 'Mensagem';
+}
+
+/** Resumo compacto e estável para citações, sem quebras ou espaços excessivos. */
+export function messageReplyPreview(type: string, content: string | null): string {
+  const compact = messagePreview(type, content).replace(/\s+/g, ' ').trim();
+  return compact.length > 160 ? `${compact.slice(0, 157)}…` : compact;
 }
 
 /** Conversa enriquecida com dados do lead/contato para a lista. */

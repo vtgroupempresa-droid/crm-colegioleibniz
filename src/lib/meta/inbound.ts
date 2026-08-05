@@ -19,6 +19,7 @@ import { createNotification } from '@/actions/notifications';
 import { handleLeibnizBotInbound, isLeibnizBotHandling } from '@/lib/whatsapp/leibniz-bot';
 import type { Database, Json } from '@/types/database';
 import {
+  messageReplyPreview,
   messagePreview,
   type ChatChannel,
   type MessageMetadata,
@@ -282,6 +283,13 @@ type WhatsappMessage = {
   button?: { payload?: string; text?: string };
   /** Reação a uma mensagem (emoji + id da mensagem original). */
   reaction?: { message_id?: string; emoji?: string };
+  /** Presente quando a mensagem responde/cita outra mensagem do WhatsApp. */
+  context?: {
+    id?: string;
+    from?: string;
+    forwarded?: boolean;
+    frequently_forwarded?: boolean;
+  };
 };
 
 /** Cartões do payload oficial → estrutura persistida em messages.metadata. */
@@ -649,6 +657,30 @@ export async function processWhatsappValue(admin: DbClient, value: unknown): Pro
       instanceId,
       contactName,
     );
+
+    // O webhook traz context.id quando a família usa "Responder" no
+    // WhatsApp. Resolve a mensagem local para permitir navegar até ela e
+    // congela um resumo no metadata para a citação continuar legível.
+    if (msg.context?.id && type !== 'reaction') {
+      const { data: repliedMessage } = await admin
+        .from('messages')
+        .select('id, external_message_id, direction, type, content')
+        .eq('conversation_id', conv.id)
+        .eq('external_message_id', msg.context.id)
+        .maybeSingle();
+      metadata = {
+        ...(metadata ?? {}),
+        reply: {
+          targetMessageId: repliedMessage?.id ?? null,
+          targetExternalId: msg.context.id,
+          direction: repliedMessage ? (repliedMessage.direction as 'inbound' | 'outbound') : null,
+          type: repliedMessage?.type ?? 'text',
+          preview: repliedMessage
+            ? messageReplyPreview(repliedMessage.type, repliedMessage.content)
+            : 'Mensagem respondida',
+        },
+      };
+    }
 
     // A trava é do LEAD, não apenas de uma conversa. Uma nova conversa do
     // mesmo telefone também respeita o bloqueio e nunca reinicia o bot.

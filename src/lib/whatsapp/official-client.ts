@@ -24,6 +24,7 @@ interface OfficialOutboundMessage {
   type: MessageType;
   content?: string | null;
   mediaUrl?: string | null;
+  replyToExternalId?: string | null;
 }
 
 /** Envia texto ou mídia pelo número oficial (da instância via, ou o do env). */

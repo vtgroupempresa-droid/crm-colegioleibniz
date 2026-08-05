@@ -24,15 +24,18 @@ export type { OfficialWhatsappStatus };
 import { ingestLead } from '@/lib/webhooks/ingest';
 import type { MappableLeadField } from '@/types/webhooks';
 import type { Activity, Lead } from '@/types/lead';
+import type { Json } from '@/types/database';
 import type { WhatsappInstanceBadge } from '@/types/whatsapp-instance';
 import {
   AUTO_LEAD_NAME_VARIABLE,
+  messageReplyPreview,
   messagePreview,
   type ChatChannel,
   type Conversation,
   type ConversationListItem,
   type ConversationStatus,
   type Message,
+  type MessageMetadata,
   type MessageTemplate,
   type MessageType,
 } from '@/types/chat';
@@ -503,7 +506,12 @@ async function dispatchOutbound(
   channel: ChatChannel,
   externalId: string,
   whatsappInstanceId: string | null,
-  msg: { type: MessageType; content?: string | null; mediaUrl?: string | null },
+  msg: {
+    type: MessageType;
+    content?: string | null;
+    mediaUrl?: string | null;
+    replyToExternalId?: string | null;
+  },
 ): Promise<MetaResult<{ messageId: string | null }>> {
   if (channel === 'whatsapp' && whatsappInstanceId) {
     const { data: instance } = await admin
@@ -531,6 +539,7 @@ export async function sendMessage(
   content: string,
   type: MessageType = 'text',
   mediaUrl?: string | null,
+  replyToMessageId?: string | null,
 ): Promise<ActionResult<SendMessageResult>> {
   const supabase = createClient();
   const {
@@ -551,6 +560,38 @@ export async function sendMessage(
     .maybeSingle();
   if (!conversation) return { ok: false, error: 'Conversa não encontrada' };
 
+  let replyToExternalId: string | null = null;
+  let replyMetadata: MessageMetadata['reply'] | null = null;
+  if (replyToMessageId) {
+    if (conversation.channel !== 'whatsapp') {
+      return { ok: false, error: 'A resposta específica está disponível no WhatsApp.' };
+    }
+    // Client autenticado + conversation_id: RLS impede citar mensagens de
+    // conversas que a pessoa não pode acessar e o filtro bloqueia referência
+    // cruzada entre leads/setores.
+    const { data: target } = await supabase
+      .from('messages')
+      .select('id, conversation_id, external_message_id, direction, type, content, status')
+      .eq('id', replyToMessageId)
+      .eq('conversation_id', conversationId)
+      .maybeSingle();
+    if (!target) return { ok: false, error: 'A mensagem escolhida não está mais disponível.' };
+    if (!target.external_message_id || target.status === 'failed') {
+      return { ok: false, error: 'Essa mensagem ainda não pode ser respondida no WhatsApp.' };
+    }
+    if (target.type === 'reaction') {
+      return { ok: false, error: 'Escolha a mensagem original, não a reação.' };
+    }
+    replyToExternalId = target.external_message_id;
+    replyMetadata = {
+      targetMessageId: target.id,
+      targetExternalId: target.external_message_id,
+      direction: target.direction as 'inbound' | 'outbound',
+      type: target.type,
+      preview: messageReplyPreview(target.type, target.content),
+    };
+  }
+
   const { data: inserted, error: insertError } = await supabase
     .from('messages')
     .insert({
@@ -562,6 +603,7 @@ export async function sendMessage(
       status: 'sent',
       sent_by: user.id,
       sent_at: new Date().toISOString(),
+      metadata: replyMetadata ? ({ reply: replyMetadata } as unknown as Json) : null,
     })
     .select('id')
     .single();
@@ -605,7 +647,7 @@ export async function sendMessage(
     conversation.channel as ChatChannel,
     conversation.external_id,
     conversation.whatsapp_instance_id,
-    { type, content, mediaUrl },
+    { type, content, mediaUrl, replyToExternalId },
   );
 
   if (result.ok) {

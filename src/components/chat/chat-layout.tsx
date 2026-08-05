@@ -240,18 +240,30 @@ export function ChatLayout({
         ? instagramConfigured
         : false;
 
-  async function handleSend(content: string, type: MessageType, mediaUrl?: string | null) {
-    if (!selectedId) return;
+  async function handleSend(
+    content: string,
+    type: MessageType,
+    mediaUrl?: string | null,
+    replyToMessageId?: string | null,
+  ): Promise<boolean> {
+    if (!selectedId) return false;
     setSending(true);
-    const result = await sendMessage(selectedId, content, type, mediaUrl);
-    setSending(false);
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
+    try {
+      const result = await sendMessage(selectedId, content, type, mediaUrl, replyToMessageId);
+      if (!result.ok) {
+        toast.error(result.error);
+        return false;
+      }
+      if (result.data.warning) toast.warning(result.data.warning);
+      await loadThread(selectedId);
+      void refreshConversations();
+      return true;
+    } catch {
+      toast.error('Falha ao enviar a mensagem. Tente novamente.');
+      return false;
+    } finally {
+      setSending(false);
     }
-    if (result.data.warning) toast.warning(result.data.warning);
-    await loadThread(selectedId);
-    void refreshConversations();
   }
 
   async function handleSendTemplate(

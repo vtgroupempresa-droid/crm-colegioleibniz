@@ -115,6 +115,16 @@ export function RefreshIcon(props: IconProps) {
   );
 }
 
+/** Seta de resposta/citação (reply), igual ao gesto do WhatsApp. */
+export function ReplyIcon(props: IconProps) {
+  return (
+    <Stroke {...props}>
+      <path d="m9 17-5-5 5-5" />
+      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+    </Stroke>
+  );
+}
+
 export function SmileIcon(props: IconProps) {
   return (
     <Stroke {...props}>

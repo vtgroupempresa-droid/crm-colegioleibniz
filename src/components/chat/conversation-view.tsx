@@ -28,6 +28,7 @@ import {
   PaperclipIcon,
   PhoneIcon,
   RefreshIcon,
+  ReplyIcon,
   SendIcon,
   SmileIcon,
   UserIcon,
@@ -39,6 +40,7 @@ import {
   CHAT_CHANNEL_META,
   CONVERSATION_STATUSES,
   CONVERSATION_STATUS_LABELS,
+  messageReplyPreview,
   parseMessageMetadata,
   type ChatChannel,
   type ConversationStatus,
@@ -66,7 +68,12 @@ interface ConversationViewProps {
   templates: MessageTemplate[];
   channelConfigured: boolean;
   sending: boolean;
-  onSend: (content: string, type: MessageType, mediaUrl?: string | null) => void;
+  onSend: (
+    content: string,
+    type: MessageType,
+    mediaUrl?: string | null,
+    replyToMessageId?: string | null,
+  ) => Promise<boolean>;
   /** Envia um template com variáveis preenchidas; true = saiu (fecha o modal). */
   onSendTemplate: (templateId: string, values: Record<string, string>) => Promise<boolean>;
   onSetStatus: (status: ConversationStatus) => void;
@@ -535,6 +542,9 @@ export function ConversationView({
   onChanged,
 }: ConversationViewProps) {
   const [text, setText] = useState('');
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [transferringSector, setTransferringSector] = useState<string | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
   // Emojis usados recentemente (persistidos no navegador) — viram a 1ª seção do picker.
@@ -601,6 +611,9 @@ export function ConversationView({
 
   // Encerra gravação pendente ao desmontar/trocar de conversa.
   useEffect(() => {
+    setReplyingTo(null);
+    setHighlightedMessageId(null);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     return () => {
       recCancelledRef.current = true;
       try {
@@ -610,6 +623,7 @@ export function ConversationView({
       }
       recStreamRef.current?.getTracks().forEach((t) => t.stop());
       if (recTimerRef.current) clearInterval(recTimerRef.current);
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     };
   }, [conversation.id]);
 
@@ -724,6 +738,7 @@ export function ConversationView({
   const disconnected = isInstanceDisconnected(instance);
   // Reagir com emoji só existe no WhatsApp (oficial e UaZAPI), com número conectado.
   const canReact = channel === 'whatsapp' && !disconnected;
+  const canReply = channel === 'whatsapp' && !disconnected;
 
   const currentSector = sectors.find((sector) => sector.id === conversation.sector_id) ?? null;
 
@@ -747,6 +762,25 @@ export function ConversationView({
     onChanged?.();
   }
 
+  function beginReply(message: Message) {
+    setReplyingTo(message);
+    setShowEmoji(false);
+    setTemplatePicker(null);
+    requestAnimationFrame(() => textRef.current?.focus());
+  }
+
+  function jumpToMessage(messageId: string) {
+    const target = document.getElementById(`chat-message-${messageId}`);
+    if (!target) {
+      toast.info('A mensagem original não está mais neste histórico.');
+      return;
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedMessageId(messageId);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightedMessageId(null), 1600);
+  }
+
   const displayName = leadName ?? conversation.contact_name ?? conversation.external_id;
   const timeline = useMemo(() => buildTimeline(messages), [messages]);
 
@@ -755,22 +789,25 @@ export function ConversationView({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length, conversation.id]);
 
-  function submit() {
+  async function submit() {
     if (!text.trim() || disconnected) return;
-    onSend(text.trim(), 'text');
+    const sent = await onSend(text.trim(), 'text', null, replyingTo?.id ?? null);
+    if (!sent) return;
     setText('');
+    setReplyingTo(null);
     // Volta a caixa à altura mínima após enviar.
     if (textRef.current) textRef.current.style.height = 'auto';
   }
 
   /** Reenvia uma mensagem que falhou (nova tentativa com o mesmo conteúdo). */
-  function handleResend(message: Message) {
+  async function handleResend(message: Message) {
     if (disconnected) {
       toast.error('Número desconectado — reconecte antes de reenviar.');
       return;
     }
     const type = (message.type === 'template' ? 'text' : message.type) as MessageType;
-    onSend(message.content ?? '', type, message.media_url);
+    const reply = parseMessageMetadata(message.metadata).reply;
+    await onSend(message.content ?? '', type, message.media_url, reply?.targetMessageId ?? null);
   }
 
   /** Cria um lead a partir de um cartão de contato compartilhado na conversa. */
@@ -853,7 +890,13 @@ export function ConversationView({
           : payload.contentType.startsWith('audio/')
             ? 'audio'
             : 'document';
-      onSend(type === 'document' ? payload.name : '', type, data.publicUrl);
+      const sent = await onSend(
+        type === 'document' ? payload.name : '',
+        type,
+        data.publicUrl,
+        replyingTo?.id ?? null,
+      );
+      if (sent) setReplyingTo(null);
     } finally {
       setUploading(false);
     }
@@ -952,7 +995,8 @@ export function ConversationView({
         return;
       }
       const { data } = supabase.storage.from('chat-media').getPublicUrl(path);
-      onSend('', 'audio', data.publicUrl);
+      const sent = await onSend('', 'audio', data.publicUrl, replyingTo?.id ?? null);
+      if (sent) setReplyingTo(null);
     } catch {
       toast.error('Falha ao converter o áudio — tente de novo.');
     } finally {
@@ -1260,6 +1304,9 @@ export function ConversationView({
                 onResend={handleResend}
                 onCreateLeadFromContact={handleCreateLeadFromContact}
                 onReact={canReact ? handleReact : undefined}
+                onReply={canReply ? beginReply : undefined}
+                onJumpToMessage={jumpToMessage}
+                highlighted={highlightedMessageId === item.message.id}
               />
             ),
           )
@@ -1370,6 +1417,43 @@ export function ConversationView({
           />
         </div>
 
+        {replyingTo && (
+          <div
+            className="mb-2 flex items-stretch overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/70 shadow-sm"
+            aria-live="polite"
+          >
+            <button
+              type="button"
+              onClick={() => jumpToMessage(replyingTo.id)}
+              className="focus-ring flex min-w-0 flex-1 items-center gap-2.5 border-l-[3px] border-emerald-600 px-3 py-2 text-left hover:bg-emerald-50"
+              title="Ir para a mensagem que será respondida"
+            >
+              <ReplyIcon size={16} className="shrink-0 text-emerald-700" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-emerald-800">
+                  Respondendo a{' '}
+                  {replyingTo.direction === 'inbound'
+                    ? displayName
+                    : ((replyingTo.sent_by ? senders[replyingTo.sent_by] : null) ??
+                      'Equipe Leibniz')}
+                </span>
+                <span className="block truncate text-xs text-brand-500">
+                  {messageReplyPreview(replyingTo.type, replyingTo.content)}
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              className="focus-ring flex w-11 shrink-0 items-center justify-center text-brand-400 hover:bg-white/70 hover:text-brand-700"
+              aria-label="Cancelar resposta"
+              title="Cancelar resposta"
+            >
+              <XIcon size={17} />
+            </button>
+          </div>
+        )}
+
         {recording ? (
           /* Modo gravação: timer + cancelar (descarta) + enviar (para e envia). */
           <div className="flex items-center gap-1">
@@ -1433,9 +1517,14 @@ export function ConversationView({
                 autoGrowTextarea();
               }}
               onKeyDown={(e) => {
+                if (e.key === 'Escape' && replyingTo) {
+                  e.preventDefault();
+                  setReplyingTo(null);
+                  return;
+                }
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  submit();
+                  void submit();
                 }
               }}
               rows={1}
@@ -1466,7 +1555,7 @@ export function ConversationView({
             </button>
             <button
               type="button"
-              onClick={submit}
+              onClick={() => void submit()}
               disabled={sending || uploading || !text.trim() || disconnected}
               title={
                 disconnected ? 'Número desconectado — reconecte em Admin → WhatsApp' : undefined
