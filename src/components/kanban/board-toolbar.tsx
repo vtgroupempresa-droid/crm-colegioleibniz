@@ -77,7 +77,7 @@ export function BoardToolbar({
   // fora do provider (board usado avulso) cai num estado local próprio.
   const shared = useBoardSearchTerm();
   const local = useState('');
-  const [term, setTerm] = shared ?? local;
+  const [term] = shared ?? local;
   const [, startTransition] = useTransition();
 
   function setSort(next: BoardSort) {
@@ -114,7 +114,16 @@ export function BoardToolbar({
     }, 300);
     return () => clearTimeout(handle);
     // onSearch é um setState estável; demais deps reexecutam a busca ao mudar.
-  }, [term, pipeline, interestFilter, sourceFilter, assignedFilter, qualificationFilter, isDemo, onSearch]);
+  }, [
+    term,
+    pipeline,
+    interestFilter,
+    sourceFilter,
+    assignedFilter,
+    qualificationFilter,
+    isDemo,
+    onSearch,
+  ]);
 
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-brand-100 bg-white px-3 py-2 shadow-sm">

@@ -15,8 +15,8 @@ import { getOrCreateMetaSource } from '@/lib/meta/source';
  * + Lead Ads (leadgen).
  *
  * GET  → verificação do webhook (hub.challenge).
- * POST → eventos. Sempre responde 200 (a Meta reenfileira em qualquer outro
- *        status). Validação de assinatura X-Hub-Signature-256 quando o
+ * POST → eventos. Falhas transitórias respondem 500 para a Meta reenfileirar.
+ *        Validação de assinatura X-Hub-Signature-256 quando o
  *        META_APP_SECRET estiver configurado; sem ele, processa mesmo assim
  *        para permitir testes locais (degradação graciosa).
  */
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   try {
     payload = JSON.parse(raw) as MetaPayload;
   } catch {
-    return NextResponse.json({ ok: false, error: 'JSON inválido' }, { status: 200 });
+    return NextResponse.json({ ok: false, error: 'JSON inválido' }, { status: 400 });
   }
 
   const admin = metaAdmin();
@@ -76,7 +76,10 @@ export async function POST(req: Request) {
 
   if (webhookDebugEnabled()) {
     // eslint-disable-next-line no-console
-    console.log('[meta/webhook] payload recebido', JSON.stringify({ object, entry: payload.entry }));
+    console.log(
+      '[meta/webhook] payload recebido',
+      JSON.stringify({ object, entry: payload.entry }),
+    );
   }
 
   try {
@@ -125,7 +128,6 @@ export async function POST(req: Request) {
     }
     processError = null;
   } catch (err) {
-    // Loga, mas devolve 200 para a Meta não reenfileirar indefinidamente.
     processError = err instanceof Error ? err.message : String(err);
     console.error('[meta/webhook] erro ao processar evento:', err);
   }
@@ -148,5 +150,7 @@ export async function POST(req: Request) {
     console.error('[meta/webhook] falha ao gravar webhook_log:', logErr);
   }
 
-  return NextResponse.json({ ok: true }, { status: 200 });
+  return processError
+    ? NextResponse.json({ ok: false, error: processError }, { status: 500 })
+    : NextResponse.json({ ok: true }, { status: 200 });
 }

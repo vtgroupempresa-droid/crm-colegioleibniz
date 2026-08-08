@@ -5,7 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils/cn';
 import { formatBRL } from '@/lib/utils/format';
-import type { Lead } from '@/types/lead';
+import { LEAD_SOURCE_LABELS, type Lead } from '@/types/lead';
 
 interface KanbanCardStandardProps {
   lead: Lead;
@@ -99,12 +99,22 @@ export function KanbanCardStandard({
           <p className="whitespace-normal break-words text-[15px] font-semibold leading-5 text-brand-800 [overflow-wrap:anywhere]">
             {lead.name}
           </p>
+          {lead.source && (
+            <span
+              className={cn(
+                'mt-2 inline-flex rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide',
+                lead.source === 'meta_ads'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'bg-brand-50 text-brand-500',
+              )}
+            >
+              {LEAD_SOURCE_LABELS[lead.source]}
+            </span>
+          )}
           <span
             className={cn(
-              'mt-2 inline-flex max-w-full items-center rounded-full px-2 py-1 text-[11px] font-semibold leading-none',
-              lead.budget == null
-                ? 'bg-brand-50 text-brand-400'
-                : 'bg-emerald-50 text-emerald-700',
+              'ml-1 mt-2 inline-flex max-w-full items-center rounded-full px-2 py-1 text-[11px] font-semibold leading-none',
+              lead.budget == null ? 'bg-brand-50 text-brand-400' : 'bg-emerald-50 text-emerald-700',
             )}
           >
             <span className="mr-1 font-medium opacity-75">Orçamento</span>

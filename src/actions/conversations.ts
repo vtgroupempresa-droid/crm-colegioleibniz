@@ -40,7 +40,25 @@ import {
   type MessageType,
 } from '@/types/chat';
 import { firstNameOf } from '@/lib/utils/format';
+import { getWhatsappInstanceAccessToken } from '@/lib/whatsapp/instance-credentials';
+import { signChatMediaUrl } from '@/lib/chat/media';
 import type { ActionResult } from './leads';
+
+async function getWhatsappDispatchInstance(
+  admin: ReturnType<typeof createAdminClient>,
+  id: string,
+) {
+  const { data } = await admin
+    .from('whatsapp_instances')
+    .select('id, provider, is_active, phone_number_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    ...data,
+    accessToken: await getWhatsappInstanceAccessToken(admin, data.id),
+  };
+}
 
 /**
  * Server Actions do Live Chat (Fase 9).
@@ -117,36 +135,34 @@ export async function getConversations(
   const { data } = await query;
   const conversations = (data ?? []) as ConversationWithLead[];
 
-  const items = await Promise.all(
-    conversations.map(async (conv) => {
-      const [{ data: last }, { count: unread }] = await Promise.all([
-        supabase
-          .from('messages')
-          .select('content, type, direction')
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('conversation_id', conv.id)
-          .eq('direction', 'inbound')
-          .in('status', ['sent', 'delivered']),
-      ]);
+  if (conversations.length === 0) return [];
 
-      const preview = last ? messagePreview(last.type, last.content) : null;
+  // Uma RPC em lote substitui duas consultas por conversa (até 400 roundtrips
+  // extras por carregamento). A função é SECURITY INVOKER: a RLS de messages
+  // continua limitando os resultados ao setor do usuário autenticado.
+  const { data: stats, error: statsError } = await supabase.rpc('get_conversation_list_stats', {
+    p_conversation_ids: conversations.map((conversation) => conversation.id),
+  });
+  if (statsError) throw new Error(`Falha ao carregar resumo das conversas: ${statsError.message}`);
 
-      return {
-        conversation: conv as Conversation,
-        leadName: conv.lead?.name ?? null,
-        leadScore: null,
-        lastMessagePreview: preview,
-        unreadCount: unread ?? 0,
-        instance: conv.whatsapp_instance,
-      } satisfies ConversationListItem;
-    }),
+  const statsByConversation = new Map(
+    (stats ?? []).map((row) => [row.conversation_id, row] as const),
   );
+  const items = conversations.map((conv) => {
+    const summary = statsByConversation.get(conv.id);
+    const preview = summary?.last_type
+      ? messagePreview(summary.last_type, summary.last_content)
+      : null;
+
+    return {
+      conversation: conv as Conversation,
+      leadName: conv.lead?.name ?? null,
+      leadScore: null,
+      lastMessagePreview: preview,
+      unreadCount: summary?.unread_count ?? 0,
+      instance: conv.whatsapp_instance,
+    } satisfies ConversationListItem;
+  });
 
   return items;
 }
@@ -236,11 +252,18 @@ export async function getConversationThread(
   ]);
 
   const lead = (leadResult.data as Lead | null) ?? null;
+  const admin = createAdminClient();
+  const signedMessages = await Promise.all(
+    (messages ?? []).map(async (message) => ({
+      ...message,
+      media_url: message.media_url ? await signChatMediaUrl(admin, message.media_url) : null,
+    })),
+  );
 
   // Nome de quem enviou cada outbound (rótulo "Bruna · SDR" da bolha) + extras
   // do painel (produto/responsável). user_profiles é legível por authenticated.
   const senderIds = Array.from(
-    new Set((messages ?? []).map((m) => m.sent_by).filter((id): id is string => Boolean(id))),
+    new Set(signedMessages.map((m) => m.sent_by).filter((id): id is string => Boolean(id))),
   );
   if (lead?.assigned_to) senderIds.push(lead.assigned_to);
   const profilesResult =
@@ -272,7 +295,7 @@ export async function getConversationThread(
           attemptsCount: attemptsResult.count ?? 0,
         }
       : null,
-    messages: messages ?? [],
+    messages: signedMessages,
     activities: (activitiesResult.data as Activity[] | null) ?? [],
     senders,
   };
@@ -315,14 +338,10 @@ export async function markConversationRead(conversationId: string): Promise<Acti
       // phone_number_id/token da instância via admin (instance_token é
       // revogado para authenticated).
       const admin = createAdminClient();
-      const { data: instance } = await admin
-        .from('whatsapp_instances')
-        .select('phone_number_id, instance_token')
-        .eq('id', instanceRef.id)
-        .maybeSingle();
+      const instance = await getWhatsappDispatchInstance(admin, instanceRef.id);
       await markOfficialMessageRead(lastInbound.external_message_id, {
         phoneNumberId: instance?.phone_number_id ?? null,
-        accessToken: instance?.instance_token ?? null,
+        accessToken: instance?.accessToken ?? null,
       });
     }
   }
@@ -514,16 +533,20 @@ async function dispatchOutbound(
   },
 ): Promise<MetaResult<{ messageId: string | null }>> {
   if (channel === 'whatsapp' && whatsappInstanceId) {
-    const { data: instance } = await admin
-      .from('whatsapp_instances')
-      .select('id, provider, is_active, phone_number_id, instance_token')
-      .eq('id', whatsappInstanceId)
-      .maybeSingle();
-    if (instance?.provider === 'official' && instance.phone_number_id) {
-      return sendOfficialMessage(externalId, msg, {
-        phoneNumberId: instance.phone_number_id,
-        accessToken: instance.instance_token,
-      });
+    const instance = await getWhatsappDispatchInstance(admin, whatsappInstanceId);
+    if (!instance?.is_active) {
+      return { ok: false, error: 'Linha de WhatsApp inativa' };
+    }
+    if (instance.provider === 'official' && instance.phone_number_id) {
+      const mediaUrl = msg.mediaUrl ? await signChatMediaUrl(admin, msg.mediaUrl) : null;
+      return sendOfficialMessage(
+        externalId,
+        { ...msg, mediaUrl },
+        {
+          phoneNumberId: instance.phone_number_id,
+          accessToken: instance.accessToken,
+        },
+      );
     }
   }
   return sendByChannel(channel, externalId, msg);
@@ -719,19 +742,15 @@ export async function reactToMessage(
   // Mesmo roteamento do dispatchOutbound: instância oficial → Cloud API pela
   // credencial da instância; sem instância, credenciais do env.
   let result: MetaResult<{ messageId: string | null }>;
-  const { data: instance } = conversation.whatsapp_instance_id
-    ? await admin
-        .from('whatsapp_instances')
-        .select('id, provider, phone_number_id, instance_token')
-        .eq('id', conversation.whatsapp_instance_id)
-        .maybeSingle()
-    : { data: null };
+  const instance = conversation.whatsapp_instance_id
+    ? await getWhatsappDispatchInstance(admin, conversation.whatsapp_instance_id)
+    : null;
   if (instance?.provider === 'official' && instance.phone_number_id) {
     result = await sendWhatsappReaction(
       conversation.external_id,
       target.external_message_id,
       emoji,
-      { phoneNumberId: instance.phone_number_id, accessToken: instance.instance_token },
+      { phoneNumberId: instance.phone_number_id, accessToken: instance.accessToken },
     );
   } else {
     result = await sendWhatsappReaction(
@@ -879,11 +898,7 @@ export async function sendTemplateMessage(
     template.meta_template_name &&
     conversation.whatsapp_instance_id
   ) {
-    const { data: instance } = await admin
-      .from('whatsapp_instances')
-      .select('id, provider, phone_number_id, instance_token')
-      .eq('id', conversation.whatsapp_instance_id)
-      .maybeSingle();
+    const instance = await getWhatsappDispatchInstance(admin, conversation.whatsapp_instance_id);
     if (instance?.provider === 'official') {
       result = await sendOfficialTemplate(
         conversation.external_id,
@@ -892,7 +907,7 @@ export async function sendTemplateMessage(
           language: template.meta_template_language,
           bodyParams: filled,
         },
-        { phoneNumberId: instance.phone_number_id, accessToken: instance.instance_token },
+        { phoneNumberId: instance.phone_number_id, accessToken: instance.accessToken },
       );
     }
   }
@@ -1144,11 +1159,7 @@ export async function sendTemplateMessageAsAi(
     template.meta_template_name &&
     conversation.whatsapp_instance_id
   ) {
-    const { data: instance } = await admin
-      .from('whatsapp_instances')
-      .select('id, provider, phone_number_id, instance_token')
-      .eq('id', conversation.whatsapp_instance_id)
-      .maybeSingle();
+    const instance = await getWhatsappDispatchInstance(admin, conversation.whatsapp_instance_id);
     if (instance?.provider === 'official') {
       result = await sendOfficialTemplate(
         conversation.external_id,
@@ -1157,7 +1168,7 @@ export async function sendTemplateMessageAsAi(
           language: template.meta_template_language,
           bodyParams: filled,
         },
-        { phoneNumberId: instance.phone_number_id, accessToken: instance.instance_token },
+        { phoneNumberId: instance.phone_number_id, accessToken: instance.accessToken },
       );
     }
   }
@@ -1354,6 +1365,7 @@ export async function openConversationForLead(
     .select('id, lead_id, assigned_to, sector_id')
     .eq('channel', channel)
     .eq('external_id', externalId)
+    .is('whatsapp_instance_id', null)
     .maybeSingle();
   if (existingByKey) {
     if (profile.role !== 'admin' && existingByKey.sector_id !== profile.sector_id) {
@@ -1401,7 +1413,7 @@ export async function openConversationForLead(
         // Sem status: abrir o chat pelo Kanban não reabre conversa resolvida
         // (INSERT novo usa o default 'open').
       },
-      { onConflict: 'channel,external_id' },
+      { onConflict: 'channel,external_id,whatsapp_instance_id' },
     )
     .select('id')
     .single();
@@ -1434,6 +1446,7 @@ export async function getLeadConversations(leadId: string): Promise<LeadConversa
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
   if (!conversations || conversations.length === 0) return [];
+  const admin = createAdminClient();
 
   return Promise.all(
     conversations.map(async (row) => {
@@ -1443,10 +1456,16 @@ export async function getLeadConversations(leadId: string): Promise<LeadConversa
         .select('*')
         .eq('conversation_id', conversation.id)
         .order('created_at', { ascending: true });
+      const signedMessages = await Promise.all(
+        (messages ?? []).map(async (message) => ({
+          ...message,
+          media_url: message.media_url ? await signChatMediaUrl(admin, message.media_url) : null,
+        })),
+      );
       return {
         conversation: conversation as Conversation,
         instance: instance as WhatsappInstanceBadge | null,
-        messages: messages ?? [],
+        messages: signedMessages,
       };
     }),
   );
@@ -1724,6 +1743,7 @@ export async function startConversation(
     .select('id, assigned_to, lead_id, sector_id, lead:leads(automations_blocked)')
     .eq('channel', 'whatsapp')
     .eq('external_id', phoneDigits)
+    .eq('whatsapp_instance_id', instance.id)
     .maybeSingle();
 
   let conversationId: string;
@@ -1780,7 +1800,7 @@ export async function startConversation(
               }
             : {}),
         },
-        { onConflict: 'channel,external_id' },
+        { onConflict: 'channel,external_id,whatsapp_instance_id' },
       )
       .select('id')
       .single();

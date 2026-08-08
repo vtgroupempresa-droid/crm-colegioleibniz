@@ -24,8 +24,7 @@ export function isConfigured(value: string | undefined | null): boolean {
   return !PLACEHOLDER_VALUES.has(value.trim().toLowerCase());
 }
 
-export const META_GRAPH_VERSION = 'v21.0';
-export const META_GRAPH_BASE = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
+export { META_GRAPH_VERSION, META_GRAPH_BASE } from './graph-version';
 
 export const metaEnv = {
   get appId() {
@@ -98,10 +97,10 @@ export function getMetaConfigStatus(): MetaConfigStatus {
     instagramConfigured: isInstagramConfigured(),
     // Só exibe o ID quando configurado (nunca o placeholder).
     whatsappPhoneNumberId: isConfigured(metaEnv.whatsappPhoneNumberId)
-      ? metaEnv.whatsappPhoneNumberId ?? null
+      ? (metaEnv.whatsappPhoneNumberId ?? null)
       : null,
     instagramPageId: isConfigured(metaEnv.instagramPageId)
-      ? metaEnv.instagramPageId ?? null
+      ? (metaEnv.instagramPageId ?? null)
       : null,
   };
 }

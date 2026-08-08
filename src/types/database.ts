@@ -535,6 +535,68 @@ export type Database = {
           },
         ];
       };
+      meta_lead_submissions: {
+        Row: {
+          ad_id: string | null;
+          ad_name: string | null;
+          adset_id: string | null;
+          adset_name: string | null;
+          campaign_id: string | null;
+          campaign_name: string | null;
+          created_at: string;
+          entry_kind: string;
+          form_answers: Json;
+          form_id: string | null;
+          form_name: string | null;
+          id: string;
+          lead_id: string;
+          leadgen_id: string;
+          submitted_at: string;
+        };
+        Insert: {
+          ad_id?: string | null;
+          ad_name?: string | null;
+          adset_id?: string | null;
+          adset_name?: string | null;
+          campaign_id?: string | null;
+          campaign_name?: string | null;
+          created_at?: string;
+          entry_kind: string;
+          form_answers?: Json;
+          form_id?: string | null;
+          form_name?: string | null;
+          id?: string;
+          lead_id: string;
+          leadgen_id: string;
+          submitted_at: string;
+        };
+        Update: {
+          ad_id?: string | null;
+          ad_name?: string | null;
+          adset_id?: string | null;
+          adset_name?: string | null;
+          campaign_id?: string | null;
+          campaign_name?: string | null;
+          created_at?: string;
+          entry_kind?: string;
+          form_answers?: Json;
+          form_id?: string | null;
+          form_name?: string | null;
+          id?: string;
+          lead_id?: string;
+          leadgen_id?: string;
+          submitted_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'meta_lead_submissions_lead_id_fkey';
+            columns: ['lead_id'];
+            isOneToOne: false;
+            referencedRelation: 'leads';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       dashboard_config: {
         Row: {
           ano: number;
@@ -1657,7 +1719,6 @@ export type Database = {
           color: string | null;
           created_at: string;
           id: string;
-          instance_token: string | null;
           is_active: boolean;
           is_connected: boolean;
           label: string | null;
@@ -1667,14 +1728,13 @@ export type Database = {
           phone_number: string | null;
           phone_number_id: string | null;
           provider: string;
-          sector_id: string | null;
+          sector_id: string;
         };
         Insert: {
           bot_enabled?: boolean;
           color?: string | null;
           created_at?: string;
           id?: string;
-          instance_token?: string | null;
           is_active?: boolean;
           is_connected?: boolean;
           label?: string | null;
@@ -1684,14 +1744,13 @@ export type Database = {
           phone_number?: string | null;
           phone_number_id?: string | null;
           provider?: string;
-          sector_id?: string | null;
+          sector_id: string;
         };
         Update: {
           bot_enabled?: boolean;
           color?: string | null;
           created_at?: string;
           id?: string;
-          instance_token?: string | null;
           is_active?: boolean;
           is_connected?: boolean;
           label?: string | null;
@@ -1701,7 +1760,7 @@ export type Database = {
           phone_number?: string | null;
           phone_number_id?: string | null;
           provider?: string;
-          sector_id?: string | null;
+          sector_id?: string;
         };
         Relationships: [
           {
@@ -1713,15 +1772,40 @@ export type Database = {
           },
         ];
       };
+      whatsapp_instance_credentials: {
+        Row: {
+          access_token: string;
+          created_at: string;
+          updated_at: string;
+          whatsapp_instance_id: string;
+        };
+        Insert: {
+          access_token: string;
+          created_at?: string;
+          updated_at?: string;
+          whatsapp_instance_id: string;
+        };
+        Update: {
+          access_token?: string;
+          created_at?: string;
+          updated_at?: string;
+          whatsapp_instance_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'whatsapp_instance_credentials_whatsapp_instance_id_fkey';
+            columns: ['whatsapp_instance_id'];
+            isOneToOne: true;
+            referencedRelation: 'whatsapp_instances';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
-      auth_role: {
-        Args: never;
-        Returns: Database['public']['Enums']['user_role'];
-      };
       count_activities_for_leads: {
         Args: { lead_ids: string[] };
         Returns: {
@@ -1771,6 +1855,16 @@ export type Database = {
           b_phone: string;
           b_state: string;
           name_similarity: number;
+        }[];
+      };
+      get_conversation_list_stats: {
+        Args: { p_conversation_ids: string[] };
+        Returns: {
+          conversation_id: string;
+          last_content: string | null;
+          last_direction: string | null;
+          last_type: string | null;
+          unread_count: number;
         }[];
       };
       list_salespeople: {

@@ -27,6 +27,7 @@ import {
   type SharedContactCard,
 } from '@/types/chat';
 import type { MappableLeadField } from '@/types/webhooks';
+import { getWhatsappInstanceAccessToken } from '@/lib/whatsapp/instance-credentials';
 
 type DbClient = SupabaseClient<Database>;
 
@@ -93,20 +94,20 @@ async function findOrCreateConversation(
   whatsappInstanceId: string | null = null,
   contactName: string | null = null,
 ): Promise<{ id: string; assignedTo: string | null; created: boolean }> {
-  const { data: existing } = await admin
+  let existingQuery = admin
     .from('conversations')
     .select('id, assigned_to, whatsapp_instance_id, contact_name, lead_id')
     .eq('channel', channel)
-    .eq('external_id', externalId)
-    .maybeSingle();
+    .eq('external_id', externalId);
+  existingQuery = whatsappInstanceId
+    ? existingQuery.eq('whatsapp_instance_id', whatsappInstanceId)
+    : existingQuery.is('whatsapp_instance_id', null);
+  const { data: existing } = await existingQuery.maybeSingle();
 
   if (existing) {
     // Backfill: instância (API oficial), nome do contato e lead — conversa que
     // nasceu de eco do dispositivo (sem lead) é vinculada ao lead na 1ª resposta.
     const patch = {
-      ...(whatsappInstanceId && existing.whatsapp_instance_id !== whatsappInstanceId
-        ? { whatsapp_instance_id: whatsappInstanceId }
-        : {}),
       ...(contactName && !existing.contact_name ? { contact_name: contactName } : {}),
       ...(leadId && !existing.lead_id ? { lead_id: leadId } : {}),
       ...(leadId && !existing.lead_id && !existing.assigned_to && assignedTo
@@ -137,7 +138,7 @@ async function findOrCreateConversation(
         // p/ 'open' — só mensagem inbound reabre (saveInboundMessage).
         last_message_at: new Date().toISOString(),
       },
-      { onConflict: 'channel,external_id' },
+      { onConflict: 'channel,external_id,whatsapp_instance_id' },
     )
     .select('id, assigned_to')
     .single();
@@ -146,7 +147,7 @@ async function findOrCreateConversation(
   return { id: created.id, assignedTo: created.assigned_to, created: true };
 }
 
-/** Sobe uma mídia baixada para o bucket chat-media e devolve a URL pública. */
+/** Sobe uma mídia no bucket privado e devolve seu caminho interno. */
 async function uploadMedia(
   admin: DbClient,
   conversationId: string,
@@ -159,8 +160,7 @@ async function uploadMedia(
     .from('chat-media')
     .upload(path, buffer, { contentType: mimeType, upsert: false });
   if (error) return null;
-  const { data } = admin.storage.from('chat-media').getPublicUrl(path);
-  return data.publicUrl ?? null;
+  return path;
 }
 
 /**
@@ -390,12 +390,15 @@ async function saveWhatsappEcho(
 
   // Conversa do destinatário; se não existe, cria vinculando lead já conhecido
   // pelo telefone (sem criar lead novo — mensagem ativa do time não é lead).
-  const { data: existing } = await admin
+  let existingQuery = admin
     .from('conversations')
     .select('id')
     .eq('channel', 'whatsapp')
-    .eq('external_id', phone)
-    .maybeSingle();
+    .eq('external_id', phone);
+  existingQuery = instanceId
+    ? existingQuery.eq('whatsapp_instance_id', instanceId)
+    : existingQuery.is('whatsapp_instance_id', null);
+  const { data: existing } = await existingQuery.maybeSingle();
 
   let conversationId: string;
   if (existing) {
@@ -416,7 +419,7 @@ async function saveWhatsappEcho(
           // Sem status: eco é mensagem NOSSA — não reabre conversa resolvida.
           last_message_at: new Date().toISOString(),
         },
-        { onConflict: 'channel,external_id' },
+        { onConflict: 'channel,external_id,whatsapp_instance_id' },
       )
       .select('id')
       .single();
@@ -513,12 +516,12 @@ export async function processWhatsappValue(admin: DbClient, value: unknown): Pro
   if (wabaId) {
     const { data: instance } = await admin
       .from('whatsapp_instances')
-      .select('id, name, is_active, instance_token, bot_enabled')
+      .select('id, name, is_active, bot_enabled')
       .eq('phone_number_id', wabaId)
       .maybeSingle();
     if (instance?.is_active) {
       instanceId = instance.id;
-      instanceToken = instance.instance_token;
+      instanceToken = await getWhatsappInstanceAccessToken(admin, instance.id);
       botEnabled = instance.bot_enabled;
     }
   }
@@ -893,7 +896,7 @@ async function processInstagramEcho(admin: DbClient, event: InstagramMessaging):
           // Sem status: eco é mensagem NOSSA — não reabre conversa resolvida.
           last_message_at: new Date().toISOString(),
         },
-        { onConflict: 'channel,external_id' },
+        { onConflict: 'channel,external_id,whatsapp_instance_id' },
       )
       .select('id')
       .single();
@@ -1106,7 +1109,7 @@ export async function processInstagramMessaging(
           // resolvida — o reopen do inbound acontece no saveInboundMessage.
           last_message_at: new Date().toISOString(),
         },
-        { onConflict: 'channel,external_id' },
+        { onConflict: 'channel,external_id,whatsapp_instance_id' },
       )
       .select('id, assigned_to')
       .single();
@@ -1187,6 +1190,18 @@ export async function processLeadgen(
 ): Promise<{ leadId: string; duplicate: boolean } | null> {
   const started = Date.now();
   const leadgenId = input.leadgen_id;
+  const { data: processed, error: processedError } = await admin
+    .from('meta_lead_submissions')
+    .select('lead_id')
+    .eq('leadgen_id', leadgenId)
+    .maybeSingle();
+  if (processedError) {
+    throw new Error(
+      `Falha ao verificar idempotência do lead ${leadgenId}: ${processedError.message}`,
+    );
+  }
+  if (processed) return { leadId: processed.lead_id, duplicate: true };
+
   const fetched = await fetchLeadgenData(leadgenId);
   if (!fetched.ok) {
     // Loga a falha de busca para o status da integração refletir o problema.
@@ -1200,7 +1215,7 @@ export async function processLeadgen(
         payload: { via: 'meta-leadgen', leadgen_id: leadgenId },
       });
     }
-    return null;
+    throw new Error(`Falha ao buscar lead ${leadgenId} na Meta: ${fetched.error}`);
   }
 
   const { field_data, campaign_name, adset_name, ad_name } = fetched.data;
@@ -1296,6 +1311,7 @@ export async function processLeadgen(
     adName: adName ?? null,
     formId: formId ?? null,
     formName: formName ?? null,
+    formAnswers,
   };
 
   const result = await ingestLead(admin, {
@@ -1326,6 +1342,27 @@ export async function processLeadgen(
       formAnswers,
     },
   });
+
+  const { error: submissionError } = await admin.from('meta_lead_submissions').upsert(
+    {
+      lead_id: result.leadId,
+      leadgen_id: leadgenId,
+      entry_kind: result.duplicate ? 'reentry' : 'first',
+      submitted_at: metaEntry.at,
+      campaign_id: metaEntry.campaignId,
+      campaign_name: metaEntry.campaignName,
+      adset_id: metaEntry.adsetId,
+      adset_name: metaEntry.adsetName,
+      ad_id: metaEntry.adId,
+      ad_name: metaEntry.adName,
+      form_id: metaEntry.formId,
+      form_name: metaEntry.formName,
+      form_answers: formAnswers,
+    },
+    { onConflict: 'leadgen_id', ignoreDuplicates: true },
+  );
+  if (submissionError)
+    throw new Error(`Falha ao salvar submissão Meta: ${submissionError.message}`);
 
   // Cria conversa de WhatsApp automaticamente quando há telefone.
   if (values.phone && !result.duplicate) {

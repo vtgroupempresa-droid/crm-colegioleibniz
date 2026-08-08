@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { formatRelative } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
 import type { Activity } from '@/types/lead';
+import type { Message } from '@/types/chat';
 
 const TYPE_ICON: Record<Activity['type'], string> = {
   call: '📞',
@@ -44,6 +45,7 @@ interface LeadTimelineTabProps {
   viewerIsAdmin: boolean;
   /** Recarrega o lead no drawer após recalcular score. */
   onMutated?: () => void | Promise<void>;
+  messages?: readonly Message[];
 }
 
 export function LeadTimelineTab({
@@ -52,6 +54,7 @@ export function LeadTimelineTab({
   activityAuthors,
   viewerIsAdmin,
   onMutated,
+  messages = [],
 }: LeadTimelineTabProps) {
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all');
 
@@ -60,7 +63,22 @@ export function LeadTimelineTab({
   const visibleActivities =
     timelineFilter === 'all'
       ? timelineActivities
-      : timelineActivities.filter((a) => TIMELINE_FILTER_TYPES[timelineFilter].includes(a.type));
+      : timelineFilter === 'messages'
+        ? []
+        : timelineActivities.filter((a) => TIMELINE_FILTER_TYPES[timelineFilter].includes(a.type));
+  const visibleMessages = timelineFilter === 'all' || timelineFilter === 'messages' ? messages : [];
+  const events = [
+    ...visibleActivities.map((activity) => ({
+      kind: 'activity' as const,
+      at: activity.created_at,
+      activity,
+    })),
+    ...visibleMessages.map((message) => ({
+      kind: 'message' as const,
+      at: message.created_at,
+      message,
+    })),
+  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
   void leadId;
   void viewerIsAdmin;
@@ -87,10 +105,37 @@ export function LeadTimelineTab({
       </div>
 
       <ol className="flex flex-col gap-3">
-        {visibleActivities.length === 0 && (
+        {events.length === 0 && (
           <li className="text-sm text-brand-400">Sem atividades nesta categoria.</li>
         )}
-        {visibleActivities.map((activity) => {
+        {events.map((event) => {
+          if (event.kind === 'message') {
+            const message = event.message;
+            const direction = message.direction === 'inbound' ? 'Família' : 'Colégio';
+            const content = message.content?.trim() || `[${message.type}]`;
+            return (
+              <li
+                key={`message-${message.id}`}
+                className="flex gap-3 rounded-md border border-sky-100 bg-sky-50/40 p-3"
+              >
+                <span aria-hidden className="text-lg leading-none">
+                  💬
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-medium text-brand-700">
+                      {direction} · {message.direction === 'inbound' ? 'recebida' : 'enviada'}
+                    </p>
+                    <span className="shrink-0 text-[11px] text-brand-400">
+                      {formatRelative(message.created_at)}
+                    </span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-brand-500">{content}</p>
+                </div>
+              </li>
+            );
+          }
+          const activity = event.activity;
           const isNote = activity.type === 'note';
           const authorName = activity.user_id ? (activityAuthors[activity.user_id] ?? null) : null;
           return (
@@ -119,9 +164,7 @@ export function LeadTimelineTab({
                   </p>
                 )}
 
-                {authorName && (
-                  <p className="mt-1 text-[11px] text-brand-400">por {authorName}</p>
-                )}
+                {authorName && <p className="mt-1 text-[11px] text-brand-400">por {authorName}</p>}
               </div>
             </li>
           );

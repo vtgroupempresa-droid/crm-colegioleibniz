@@ -179,6 +179,10 @@ export function ChatLayout({
         },
         (payload) => {
           const msg = payload.new as Message;
+          if (msg.media_url) {
+            void loadThread(selectedId);
+            return;
+          }
           setThread((prev) =>
             prev && prev.conversation.id === selectedId
               ? prev.messages.some((m) => m.id === msg.id)
@@ -198,6 +202,10 @@ export function ChatLayout({
         },
         (payload) => {
           const msg = payload.new as Message;
+          if (msg.media_url) {
+            void loadThread(selectedId);
+            return;
+          }
           setThread((prev) =>
             prev
               ? { ...prev, messages: prev.messages.map((m) => (m.id === msg.id ? msg : m)) }
@@ -209,7 +217,7 @@ export function ChatLayout({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [selectedId]);
+  }, [selectedId, loadThread]);
 
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();

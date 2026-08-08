@@ -19,11 +19,11 @@ import {
   LEAD_SOURCES,
   LEAD_SOURCE_LABELS,
   SCHOOL_YEARS_BY_LEVEL,
-  parseMetaLeadEntries,
   type Activity,
   type Appointment,
   type EducationLevel,
   type Lead,
+  type MetaLeadEntry,
 } from '@/types/lead';
 import { USER_ROLE_LABELS, type UserRole } from '@/types/user';
 
@@ -37,6 +37,7 @@ interface LeadDataTabProps {
   viewerRole?: string | null;
   /** Recarrega o lead no drawer após salvar (mudanças aparecem na hora). */
   onMutated?: () => void | Promise<void>;
+  metaEntries?: readonly MetaLeadEntry[];
 }
 
 /**
@@ -58,6 +59,7 @@ export function LeadDataTab({
   deals = [],
   viewerRole = null,
   onMutated,
+  metaEntries = [],
 }: LeadDataTabProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -142,11 +144,7 @@ export function LeadDataTab({
           </p>
         </div>
 
-        <LeadOriginSection
-          lead={lead}
-          entries={parseMetaLeadEntries(lead.meta_entries)}
-          activities={activities}
-        />
+        <LeadOriginSection lead={lead} entries={metaEntries} activities={activities} />
 
         <div className="grid grid-cols-2 gap-3">
           <Input
@@ -198,13 +196,13 @@ export function LeadDataTab({
             ))}
           </Select>
           <Input
-          label="Orçamento da família (R$)"
+            label="Orçamento da família (R$)"
             type="number"
             min={0}
             step="0.01"
             inputMode="decimal"
-          value={form.budget}
-          onChange={(e) => set('budget', e.target.value)}
+            value={form.budget}
+            onChange={(e) => set('budget', e.target.value)}
             placeholder="Ex.: 2500"
           />
         </div>

@@ -49,7 +49,7 @@ export function LeadAppointmentsTab({
   const [generateMeet, setGenerateMeet] = useState(true);
 
   // Equipe — alimenta o select de atendente e o mapa id→nome exibido em cada
-  // visita (RLS-safe via RPC list_salespeople).
+  // visita (RLS preservada via RPC list_salespeople SECURITY INVOKER).
   useEffect(() => {
     listTeamMembers()
       .then((people) => {

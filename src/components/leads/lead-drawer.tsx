@@ -13,7 +13,8 @@ import { Select } from '@/components/ui/select';
 import { LostReasonModal } from '@/components/kanban/lost-reason-modal';
 import { SoftBlockModal } from '@/components/kanban/soft-block-modal';
 import { labelForField, validateRequiredFields } from '@/lib/leads/validators';
-import type { Activity, Appointment, ContactAttempt, Lead } from '@/types/lead';
+import type { Activity, Appointment, ContactAttempt, Lead, MetaLeadEntry } from '@/types/lead';
+import type { Message } from '@/types/chat';
 import { PIPELINE_LABELS, type PipelineKind } from '@/types/pipeline';
 import type { LeadDealSummary, StageWithCount } from '@/actions/leads-queries';
 import { LeadDataTab } from './lead-data-tab';
@@ -43,6 +44,8 @@ interface LeadPayload {
   viewerRole: string | null;
   /** Conversa mais recente do lead visível ao usuário — botão "Ir para o chat". */
   conversationId: string | null;
+  metaEntries: MetaLeadEntry[];
+  timelineMessages: Message[];
 }
 
 interface LeadDrawerProps {
@@ -127,8 +130,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
 
   function performMove(force: boolean) {
     if (!payload) return;
-    const stageName =
-      payload.stages.find((s) => s.slug === targetStage)?.name ?? targetStage;
+    const stageName = payload.stages.find((s) => s.slug === targetStage)?.name ?? targetStage;
     startMove(async () => {
       const result = await moveLeadStage(payload.lead.id, targetStage, force);
       if (!result.ok) {
@@ -189,12 +191,13 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
               deals={payload.deals ?? []}
               viewerRole={payload.viewerRole}
               onMutated={reload}
+              metaEntries={payload.metaEntries}
             />
           ),
         },
         {
           id: 'timeline',
-          label: `Histórico (${payload.activities.filter((a) => a.type !== 'note').length})`,
+          label: `Histórico (${payload.activities.filter((a) => a.type !== 'note').length + payload.timelineMessages.length})`,
           content: (
             <LeadTimelineTab
               leadId={payload.lead.id}
@@ -203,6 +206,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
               viewerId={payload.viewerId}
               viewerIsAdmin={payload.viewerIsAdmin}
               onMutated={reload}
+              messages={payload.timelineMessages}
             />
           ),
         },
@@ -308,11 +312,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
               {!payload.lead.is_archived &&
                 !payload.lead.lost_reason &&
                 payload.lead.pipeline !== 'pos_matricula' && (
-                  <Button
-                    variant="danger"
-                    className="h-10"
-                    onClick={() => setLostOpen(true)}
-                  >
+                  <Button variant="danger" className="h-10" onClick={() => setLostOpen(true)}>
                     Encerrar como não interessado
                   </Button>
                 )}
@@ -326,9 +326,7 @@ export function LeadDrawer({ leadId, open, onClose }: LeadDrawerProps) {
         <SoftBlockModal
           open
           onClose={() => setSoftMissing(null)}
-          targetStageName={
-            payload.stages.find((s) => s.slug === targetStage)?.name ?? targetStage
-          }
+          targetStageName={payload.stages.find((s) => s.slug === targetStage)?.name ?? targetStage}
           missing={softMissing}
           onFillNow={() => setSoftMissing(null)}
           onAdvanceAnyway={() => performMove(true)}

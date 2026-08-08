@@ -163,6 +163,7 @@ export interface MetaLeadEntry {
   adName: string | null;
   formId: string | null;
   formName: string | null;
+  formAnswers: MetaFormAnswer[];
 }
 
 /** Converte o jsonb cru em MetaLeadEntry[] validando o shape (zero `any`). */
@@ -186,6 +187,7 @@ export function parseMetaLeadEntries(raw: unknown): MetaLeadEntry[] {
       adName: str(r.adName),
       formId: str(r.formId),
       formName: str(r.formName),
+      formAnswers: parseMetaFormAnswers(r.formAnswers),
     });
   }
   return entries;

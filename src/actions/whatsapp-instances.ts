@@ -6,6 +6,11 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getSession, isAdmin } from '@/lib/auth/session';
 import { fetchOfficialWhatsappStatus } from '@/lib/whatsapp/official-client';
+import {
+  getWhatsappInstanceAccessToken,
+  listWhatsappInstanceCredentialPreviews,
+  saveWhatsappInstanceAccessToken,
+} from '@/lib/whatsapp/instance-credentials';
 import { WHATSAPP_PROVIDERS } from '@/types/whatsapp-instance';
 import type { WhatsappInstanceBadge } from '@/types/whatsapp-instance';
 import type { ActionResult } from './leads';
@@ -43,6 +48,7 @@ const instanceSchema = z.object({
     .optional(),
   botEnabled: z.boolean().default(false),
   isActive: z.boolean().default(true),
+  sectorId: z.string().uuid('Selecione o setor responsável'),
 });
 
 export type WhatsappInstanceInput = z.infer<typeof instanceSchema>;
@@ -61,6 +67,7 @@ export interface WhatsappInstanceRow {
   is_connected: boolean;
   last_connected_at: string | null;
   created_at: string;
+  sector_id: string;
   hasToken: boolean;
   tokenPreview: string | null;
 }
@@ -80,27 +87,31 @@ export async function listWhatsappInstances(): Promise<WhatsappInstanceRow[]> {
   if (!auth.ok) return [];
 
   const admin = createAdminClient();
-  const { data } = await admin
-    .from('whatsapp_instances')
-    .select('*')
-    .order('created_at', { ascending: true });
+  const [{ data }, credentials] = await Promise.all([
+    admin.from('whatsapp_instances').select('*').order('created_at', { ascending: true }),
+    listWhatsappInstanceCredentialPreviews(admin),
+  ]);
 
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    name: row.name,
-    label: row.label,
-    color: row.color,
-    provider: row.provider,
-    phone_number: row.phone_number,
-    phone_number_id: row.phone_number_id,
-    bot_enabled: row.bot_enabled,
-    is_active: row.is_active,
-    is_connected: row.is_connected,
-    last_connected_at: row.last_connected_at,
-    created_at: row.created_at,
-    hasToken: Boolean(row.instance_token),
-    tokenPreview: row.instance_token ? `…${row.instance_token.slice(-4)}` : null,
-  }));
+  return (data ?? []).map((row) => {
+    const credential = credentials.get(row.id);
+    return {
+      id: row.id,
+      name: row.name,
+      label: row.label,
+      color: row.color,
+      provider: row.provider,
+      phone_number: row.phone_number,
+      phone_number_id: row.phone_number_id,
+      bot_enabled: row.bot_enabled,
+      is_active: row.is_active,
+      is_connected: row.is_connected,
+      last_connected_at: row.last_connected_at,
+      created_at: row.created_at,
+      sector_id: row.sector_id,
+      hasToken: credential?.hasToken ?? false,
+      tokenPreview: credential?.tokenPreview ?? null,
+    };
+  });
 }
 
 /** Badges das linhas ativas para os filtros do /chat (qualquer role). */
@@ -135,16 +146,29 @@ export async function createWhatsappInstance(
       label: d.label?.trim() || null,
       color: d.color ?? null,
       provider: d.provider,
-      instance_token: d.instanceToken?.trim() || null,
       phone_number: d.phoneNumber?.trim() || null,
       phone_number_id: d.phoneNumberId?.trim() || null,
       bot_enabled: d.botEnabled,
       is_active: d.isActive,
+      sector_id: d.sectorId,
     })
     .select('id')
     .single();
 
   if (error || !data) return { ok: false, error: error?.message ?? 'Falha ao criar linha' };
+
+  const token = d.instanceToken?.trim();
+  if (token) {
+    try {
+      await saveWhatsappInstanceAccessToken(admin, data.id, token);
+    } catch (credentialError) {
+      await admin.from('whatsapp_instances').delete().eq('id', data.id);
+      return {
+        ok: false,
+        error: credentialError instanceof Error ? credentialError.message : 'Falha ao salvar token',
+      };
+    }
+  }
 
   revalidatePath('/admin');
   revalidatePath('/chat');
@@ -177,12 +201,21 @@ export async function updateWhatsappInstance(
       phone_number_id: d.phoneNumberId?.trim() || null,
       bot_enabled: d.botEnabled,
       is_active: d.isActive,
-      // Token vazio na edição = mantém o atual (não dá para reexibir o segredo).
-      ...(token ? { instance_token: token } : {}),
+      sector_id: d.sectorId,
     })
     .eq('id', id);
 
   if (error) return { ok: false, error: error.message };
+  if (token) {
+    try {
+      await saveWhatsappInstanceAccessToken(admin, id, token);
+    } catch (credentialError) {
+      return {
+        ok: false,
+        error: credentialError instanceof Error ? credentialError.message : 'Falha ao salvar token',
+      };
+    }
+  }
 
   revalidatePath('/admin');
   revalidatePath('/chat');
@@ -229,17 +262,18 @@ export async function testWhatsappInstanceConnection(
   const admin = createAdminClient();
   const { data: instance } = await admin
     .from('whatsapp_instances')
-    .select('id, name, instance_token, provider, is_connected, phone_number_id')
+    .select('id, name, provider, is_connected, phone_number_id')
     .eq('id', id)
     .maybeSingle();
   if (!instance) return { ok: false, error: 'Linha não encontrada' };
+  const accessToken = await getWhatsappInstanceAccessToken(admin, instance.id);
 
   // Checa a LINHA, não o env: num cadastro multi-número o teste tem que falar
   // com o phone_number_id daquela instância, senão todas reportam o status de
   // um único número (e uma linha mal configurada aparece como conectada).
   const status = await fetchOfficialWhatsappStatus({
     phoneNumberId: instance.phone_number_id,
-    accessToken: instance.instance_token,
+    accessToken,
   });
   const connected = status.configured && !status.error;
 

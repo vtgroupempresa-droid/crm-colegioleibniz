@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseCampaignName, campaignAdCreative } from '@/lib/webhooks/campaign-parser';
 import { mergeTags } from '@/lib/webhooks/tag-rules';
-import { normalizePhone } from '@/lib/leads/identity';
+import { findLeadByIdentity, normalizePhone } from '@/lib/leads/identity';
+import { parseSchoolFields } from './form-qualification';
 import { getOrCreateMetaSource } from './source';
 import {
   EDUCATION_LEVELS,
@@ -9,10 +10,12 @@ import {
   type EducationLevel,
   type LeadInsert,
   type LeadSource,
+  parseMetaLeadEntries,
 } from '@/types/lead';
-import type { Database } from '@/types/database';
+import type { Database, Json } from '@/types/database';
 import type { PipelineKind } from '@/types/pipeline';
 import type { MappableLeadField } from '@/types/webhooks';
+import { META_GRAPH_BASE } from './graph-version';
 
 type DbClient = SupabaseClient<Database>;
 
@@ -29,7 +32,7 @@ type DbClient = SupabaseClient<Database>;
  * etapa de Follow-Up para a equipe requalificar (default configurável).
  */
 
-const GRAPH_BASE = 'https://graph.facebook.com/v19.0';
+const GRAPH_BASE = META_GRAPH_BASE;
 const IMPORT_TAG = 'importado-meta';
 
 export interface ImportOptions {
@@ -97,8 +100,12 @@ interface GraphLead {
   id?: string;
   created_time?: string;
   ad_id?: string;
+  ad_name?: string;
+  adset_id?: string;
+  adset_name?: string;
   campaign_id?: string;
   campaign_name?: string;
+  form_id?: string;
   field_data?: GraphLeadgenField[];
 }
 
@@ -204,8 +211,10 @@ async function fetchFormLeads(
   since: Date | null,
   remaining: number,
 ): Promise<GraphLead[]> {
-  const fields = 'field_data,created_time,ad_id,campaign_id,campaign_name';
-  let url: string | null = `${GRAPH_BASE}/${formId}/leads?fields=${fields}&limit=100&access_token=${encodeURIComponent(token)}`;
+  const fields =
+    'field_data,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id';
+  let url: string | null =
+    `${GRAPH_BASE}/${formId}/leads?fields=${fields}&limit=100&access_token=${encodeURIComponent(token)}`;
   const out: GraphLead[] = [];
 
   while (url && out.length < remaining) {
@@ -258,13 +267,19 @@ async function resolveCampaignName(
 function mapFieldData(fieldData: GraphLeadgenField[]): {
   values: Partial<Record<MappableLeadField, string>>;
   numbers: Partial<Record<MappableLeadField, number>>;
+  formAnswers: { question: string; answer: string }[];
 } {
   const values: Partial<Record<MappableLeadField, string>> = {};
   const numbers: Partial<Record<MappableLeadField, number>> = {};
+  const formAnswers: { question: string; answer: string }[] = [];
 
   for (const field of fieldData) {
     const value = field.values?.[0];
     if (!value) continue;
+    formAnswers.push({
+      question: field.name,
+      answer: field.values?.filter(Boolean).join(', ') ?? value,
+    });
     switch (field.name) {
       case 'full_name':
       case 'name':
@@ -301,7 +316,7 @@ function mapFieldData(fieldData: GraphLeadgenField[]): {
     }
   }
 
-  return { values, numbers };
+  return { values, numbers, formAnswers };
 }
 
 interface PersistResult {
@@ -315,12 +330,14 @@ async function persistLead(
   sourceId: string,
   lead: GraphLead,
   formName: string,
+  formId: string,
   pipeline: PipelineKind,
   stage: string,
   campaignName: string | null,
 ): Promise<PersistResult> {
   const started = Date.now();
-  const { values } = mapFieldData(lead.field_data ?? []);
+  const { values, formAnswers } = mapFieldData(lead.field_data ?? []);
+  const schoolFields = parseSchoolFields(formAnswers);
 
   const parsed = parseCampaignName(campaignName);
   const adCreative = campaignAdCreative(parsed);
@@ -339,32 +356,75 @@ async function persistLead(
   const educationLevel = coerceEducationLevel(values.education_level);
   const source = coerceSource(values.source, 'meta_ads');
 
-  // Deduplicação por phone/email (leads não arquivados).
-  const orFilters: string[] = [];
-  if (phone) orFilters.push(`phone.eq.${phone}`);
-  if (email) orFilters.push(`email.eq.${email}`);
+  const existing = await findLeadByIdentity(admin, { phone, email, name });
+  const submittedAt = lead.created_time ?? new Date().toISOString();
+  const metaEntry = {
+    at: submittedAt,
+    kind: existing ? ('reentry' as const) : ('first' as const),
+    leadgenId: lead.id ?? null,
+    campaignId: lead.campaign_id ?? null,
+    campaignName,
+    adsetId: lead.adset_id ?? null,
+    adsetName: lead.adset_name ?? null,
+    adId: lead.ad_id ?? null,
+    adName: lead.ad_name ?? null,
+    formId: lead.form_id ?? formId,
+    formName,
+    formAnswers,
+  };
 
-  if (orFilters.length > 0) {
-    const { data: existing } = await admin
+  if (existing) {
+    const entries = parseMetaLeadEntries(existing.meta_entries);
+    const alreadyLogged = Boolean(lead.id && entries.some((entry) => entry.leadgenId === lead.id));
+    const mergedTags = mergeTags(existing.tags ?? [], tags);
+    const { error: updateError } = await admin
       .from('leads')
-      .select('id, tags')
-      .eq('is_archived', false)
-      .or(orFilters.join(','))
-      .limit(1)
-      .maybeSingle();
-
-    if (existing) {
-      const mergedTags = mergeTags(existing.tags ?? [], tags);
-      await admin.from('leads').update({ tags: mergedTags }).eq('id', existing.id);
-      await admin.from('webhook_logs').insert({
-        source_id: sourceId,
-        status: 'duplicate',
-        lead_id: existing.id,
-        processing_time_ms: Date.now() - started,
-        payload: { via: 'import-meta', form: formName, leadgen_id: lead.id ?? null, name },
-      });
-      return { status: 'duplicate' };
+      .update({
+        tags: mergedTags,
+        source: 'meta_ads',
+        meta_campaign_id: lead.campaign_id ?? null,
+        meta_campaign_name: campaignName,
+        meta_adset_id: lead.adset_id ?? null,
+        meta_adset_name: lead.adset_name ?? null,
+        meta_ad_id: lead.ad_id ?? null,
+        meta_ad_name: lead.ad_name ?? null,
+        meta_form_id: lead.form_id ?? formId,
+        meta_form_name: formName,
+        meta_form_answers: formAnswers as unknown as Json,
+        ...schoolFields,
+        ...(!alreadyLogged ? { meta_entries: [...entries, metaEntry] as unknown as Json } : {}),
+      })
+      .eq('id', existing.id);
+    if (updateError) return { status: 'error', reason: updateError.message };
+    if (lead.id) {
+      const { error: submissionError } = await admin.from('meta_lead_submissions').upsert(
+        {
+          lead_id: existing.id,
+          leadgen_id: lead.id,
+          entry_kind: 'reentry',
+          submitted_at: submittedAt,
+          campaign_id: lead.campaign_id ?? null,
+          campaign_name: campaignName,
+          adset_id: lead.adset_id ?? null,
+          adset_name: lead.adset_name ?? null,
+          ad_id: lead.ad_id ?? null,
+          ad_name: lead.ad_name ?? null,
+          form_id: lead.form_id ?? formId,
+          form_name: formName,
+          form_answers: formAnswers as unknown as Json,
+        },
+        { onConflict: 'leadgen_id', ignoreDuplicates: true },
+      );
+      if (submissionError) return { status: 'error', reason: submissionError.message };
     }
+    await admin.from('webhook_logs').insert({
+      source_id: sourceId,
+      status: 'duplicate',
+      lead_id: existing.id,
+      processing_time_ms: Date.now() - started,
+      payload: { via: 'import-meta', form: formName, leadgen_id: lead.id ?? null, name },
+    });
+    return { status: 'duplicate' };
   }
 
   const insert: LeadInsert = {
@@ -386,13 +446,20 @@ async function persistLead(
     stage,
     assigned_to: null,
     is_demo: false,
+    meta_campaign_id: lead.campaign_id ?? null,
+    meta_campaign_name: campaignName,
+    meta_adset_id: lead.adset_id ?? null,
+    meta_adset_name: lead.adset_name ?? null,
+    meta_ad_id: lead.ad_id ?? null,
+    meta_ad_name: lead.ad_name ?? null,
+    meta_form_id: lead.form_id ?? formId,
+    meta_form_name: formName,
+    meta_form_answers: formAnswers as unknown as Json,
+    meta_entries: [metaEntry] as unknown as Json,
+    ...schoolFields,
   };
 
-  const { data: created, error } = await admin
-    .from('leads')
-    .insert(insert)
-    .select('id')
-    .single();
+  const { data: created, error } = await admin.from('leads').insert(insert).select('id').single();
 
   if (error || !created) {
     await admin.from('webhook_logs').insert({
@@ -403,6 +470,31 @@ async function persistLead(
       payload: { via: 'import-meta', form: formName, leadgen_id: lead.id ?? null, name },
     });
     return { status: 'error', reason: error?.message ?? 'Falha ao inserir lead' };
+  }
+
+  if (lead.id) {
+    const { error: submissionError } = await admin.from('meta_lead_submissions').upsert(
+      {
+        lead_id: created.id,
+        leadgen_id: lead.id,
+        entry_kind: 'first',
+        submitted_at: submittedAt,
+        campaign_id: lead.campaign_id ?? null,
+        campaign_name: campaignName,
+        adset_id: lead.adset_id ?? null,
+        adset_name: lead.adset_name ?? null,
+        ad_id: lead.ad_id ?? null,
+        ad_name: lead.ad_name ?? null,
+        form_id: lead.form_id ?? formId,
+        form_name: formName,
+        form_answers: formAnswers as unknown as Json,
+      },
+      { onConflict: 'leadgen_id', ignoreDuplicates: true },
+    );
+    if (submissionError) {
+      await admin.from('leads').delete().eq('id', created.id);
+      return { status: 'error', reason: submissionError.message };
+    }
   }
 
   await admin.from('activities').insert({
@@ -464,14 +556,14 @@ export async function importMetaLeads(
   }
 
   // 2. Coleta os leads de cada formulário (respeitando since + limite global).
-  const collected: { lead: GraphLead; formName: string }[] = [];
+  const collected: { lead: GraphLead; formName: string; formId: string }[] = [];
   for (const form of forms) {
     if (collected.length >= maxLeads) break;
     const remaining = maxLeads === Number.POSITIVE_INFINITY ? 1000 : maxLeads - collected.length;
     const leads = await fetchFormLeads(pageToken, form.id, sinceDate, remaining);
     for (const lead of leads) {
       if (collected.length >= maxLeads) break;
-      collected.push({ lead, formName: form.name });
+      collected.push({ lead, formName: form.name, formId: form.id });
     }
   }
 
@@ -495,8 +587,9 @@ export async function importMetaLeads(
   for (let i = 0; i < collected.length; i += 1) {
     const entry = collected[i];
     if (!entry) continue;
-    const { lead, formName } = entry;
+    const { lead, formName, formId: entryFormId } = entry;
     const rep = formReport(formName);
+    rep.formId = entryFormId;
     rep.found += 1;
 
     const campaignName = await resolveCampaignName(token, lead, campaignCache);
@@ -510,20 +603,7 @@ export async function importMetaLeads(
         const { values } = mapFieldData(lead.field_data ?? []);
         const phone = values.phone?.trim() || null;
         const email = values.email?.trim() || null;
-        const orFilters: string[] = [];
-        if (phone) orFilters.push(`phone.eq.${phone}`);
-        if (email) orFilters.push(`email.eq.${email}`);
-        let isDup = false;
-        if (orFilters.length > 0) {
-          const { data: existing } = await admin
-            .from('leads')
-            .select('id')
-            .eq('is_archived', false)
-            .or(orFilters.join(','))
-            .limit(1)
-            .maybeSingle();
-          isDup = Boolean(existing);
-        }
+        const isDup = Boolean(await findLeadByIdentity(admin, { phone, email, name: leadName }));
         if (isDup) {
           duplicates += 1;
           rep.duplicates += 1;
@@ -537,6 +617,7 @@ export async function importMetaLeads(
           sourceId,
           lead,
           formName,
+          entryFormId,
           pipeline,
           stage,
           campaignName,

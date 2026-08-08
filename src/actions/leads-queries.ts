@@ -11,8 +11,10 @@ import type {
   InterestLevel,
   Lead,
   LeadSource,
+  MetaLeadEntry,
   SourceFilter,
 } from '@/types/lead';
+import type { Message } from '@/types/chat';
 import { PIPELINES, type PipelineKind } from '@/types/pipeline';
 import { resolvePeriod } from '@/lib/dashboard/period';
 
@@ -51,6 +53,8 @@ export interface LeadWithRelations {
    * de user_profiles.
    */
   activityAuthors: Record<string, string>;
+  metaEntries: MetaLeadEntry[];
+  timelineMessages: Message[];
 }
 
 export async function getLeadById(
@@ -66,40 +70,58 @@ export async function getLeadById(
     .maybeSingle();
   if (!lead) return null;
 
-  const [activitiesRes, attemptsRes, appointmentsRes, dealsRes] = await Promise.all([
-    supabase
-      .from('activities')
-      .select('*')
-      .eq('lead_id', id)
-      .order('created_at', { ascending: false })
-      .limit(100),
-    supabase
-      .from('contact_attempts')
-      .select('*')
-      .eq('lead_id', id)
-      .order('attempt_number', { ascending: false }),
-    supabase
-      .from('appointments')
-      .select('*')
-      .eq('lead_id', id)
-      .order('scheduled_at', { ascending: false }),
-    supabase
-      .from('deals')
-      .select(
-        'id, student_name, school_year, enrollment_year, contract_value, monthly_value, sale_status, signed_at, payment_method, closed_by, notes',
-      )
-      .eq('lead_id', id)
-      .order('signed_at', { ascending: false }),
-  ]);
+  const { data: conversationRows } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('lead_id', id);
+  const conversationIds = (conversationRows ?? []).map((row) => row.id);
+
+  const [activitiesRes, attemptsRes, appointmentsRes, dealsRes, submissionsRes, messagesRes] =
+    await Promise.all([
+      supabase
+        .from('activities')
+        .select('*')
+        .eq('lead_id', id)
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabase
+        .from('contact_attempts')
+        .select('*')
+        .eq('lead_id', id)
+        .order('attempt_number', { ascending: false }),
+      supabase
+        .from('appointments')
+        .select('*')
+        .eq('lead_id', id)
+        .order('scheduled_at', { ascending: false }),
+      supabase
+        .from('deals')
+        .select(
+          'id, student_name, school_year, enrollment_year, contract_value, monthly_value, sale_status, signed_at, payment_method, closed_by, notes',
+        )
+        .eq('lead_id', id)
+        .order('signed_at', { ascending: false }),
+      supabase
+        .from('meta_lead_submissions')
+        .select('*')
+        .eq('lead_id', id)
+        .order('submitted_at', { ascending: true }),
+      conversationIds.length
+        ? supabase
+            .from('messages')
+            .select('*')
+            .in('conversation_id', conversationIds)
+            .order('created_at', { ascending: false })
+            .limit(300)
+        : Promise.resolve({ data: [] as Message[] }),
+    ]);
 
   const dealRows = dealsRes.data ?? [];
 
   // Nomes dos autores das activities e de quem fechou as matrículas.
   const authorIds = [
     ...new Set([
-      ...(activitiesRes.data ?? [])
-        .map((a) => a.user_id)
-        .filter((id): id is string => Boolean(id)),
+      ...(activitiesRes.data ?? []).map((a) => a.user_id).filter((id): id is string => Boolean(id)),
       ...dealRows.map((d) => d.closed_by).filter((id): id is string => Boolean(id)),
     ]),
   ];
@@ -135,6 +157,31 @@ export async function getLeadById(
     hasDeal: dealRows.length > 0,
     deals,
     activityAuthors,
+    metaEntries: (submissionsRes.data ?? []).map((submission) => ({
+      at: submission.submitted_at,
+      kind: submission.entry_kind === 'reentry' ? 'reentry' : 'first',
+      leadgenId: submission.leadgen_id,
+      campaignId: submission.campaign_id,
+      campaignName: submission.campaign_name,
+      adsetId: submission.adset_id,
+      adsetName: submission.adset_name,
+      adId: submission.ad_id,
+      adName: submission.ad_name,
+      formId: submission.form_id,
+      formName: submission.form_name,
+      formAnswers: Array.isArray(submission.form_answers)
+        ? submission.form_answers.flatMap((answer) =>
+            answer &&
+            typeof answer === 'object' &&
+            !Array.isArray(answer) &&
+            typeof answer.question === 'string' &&
+            typeof answer.answer === 'string'
+              ? [{ question: answer.question, answer: answer.answer }]
+              : [],
+          )
+        : [],
+    })),
+    timelineMessages: (messagesRes.data as Message[] | null) ?? [],
   };
 }
 
@@ -239,9 +286,7 @@ export async function listLeads(filters: ListLeadsFilters = {}): Promise<ListLea
   if (filters.meetingToday || filters.createdToday) {
     const { dayStart, dayEnd } = todayWindow();
     if (filters.meetingToday) {
-      q = q
-        .gte('appointments.scheduled_at', dayStart)
-        .lt('appointments.scheduled_at', dayEnd);
+      q = q.gte('appointments.scheduled_at', dayStart).lt('appointments.scheduled_at', dayEnd);
     }
     if (filters.createdToday) q = q.gte('created_at', dayStart);
   }
@@ -303,9 +348,7 @@ export interface LeadsPageStats {
  * (count exato sem trazer linhas) — barato mesmo com dezenas de milhares de
  * leads. "Quente"/"morno" seguem o nível de interesse registrado pela equipe.
  */
-export async function getLeadsPageStats(
-  opts: { isDemo?: boolean } = {},
-): Promise<LeadsPageStats> {
+export async function getLeadsPageStats(opts: { isDemo?: boolean } = {}): Promise<LeadsPageStats> {
   const supabase = createClient();
   const isDemo = opts.isDemo ?? false;
   const { dayStart, dayEnd } = todayWindow();
@@ -437,9 +480,9 @@ export interface CloserOption {
 }
 
 /**
- * RPC list_salespeople deduplicada por request (React cache). Via RPC SECURITY
- * DEFINER porque um SELECT direto em user_profiles pela RLS só devolve o que a
- * policy deixa. Sem o cache, um clique no board disparava a MESMA RPC 11+ vezes
+ * RPC list_salespeople deduplicada por request (React cache). A função usa
+ * SECURITY INVOKER e preserva a RLS de user_profiles. Sem o cache, um clique no
+ * board disparava a MESMA RPC 11+ vezes
  * (listAssignableUsers + uma por coluna no enrichLeads).
  */
 const getSalespeople = cache(async () => {
@@ -463,7 +506,7 @@ export interface AssignableUser {
 
 /**
  * Usuários atribuíveis como responsável pelo lead (toda a equipe). Via RPC
- * `list_salespeople` (SECURITY DEFINER) para contornar a RLS de user_profiles.
+ * `list_salespeople` (SECURITY INVOKER), preservando a RLS de user_profiles.
  */
 export async function listAssignableUsers(): Promise<AssignableUser[]> {
   const people = await getSalespeople();
@@ -602,34 +645,38 @@ async function enrichLeads(
 
   const ids = leads.map((l) => l.id);
 
-  const [{ data: stageChanges }, { data: attempts }, { data: allAttempts }, { data: appointments }] =
-    await Promise.all([
-      supabase
-        .from('activities')
-        .select('lead_id, created_at, metadata')
-        .in('lead_id', ids)
-        .eq('type', 'stage_change')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('contact_attempts')
-        .select('lead_id, sla_deadline, sla_breached')
-        .in('lead_id', ids)
-        .eq('sla_breached', false)
-        .not('sla_deadline', 'is', null)
-        .order('sla_deadline', { ascending: true }),
-      supabase
-        .from('contact_attempts')
-        .select('lead_id, attempt_number, outcome, attempted_at')
-        .in('lead_id', ids)
-        .order('attempt_number', { ascending: false }),
-      supabase
-        .from('appointments')
-        .select('id, lead_id, scheduled_at, confirmed, showed_up, created_by, assigned_to')
-        .in('lead_id', ids)
-        .is('showed_up', null)
-        .gte('scheduled_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-        .order('scheduled_at', { ascending: true }),
-    ]);
+  const [
+    { data: stageChanges },
+    { data: attempts },
+    { data: allAttempts },
+    { data: appointments },
+  ] = await Promise.all([
+    supabase
+      .from('activities')
+      .select('lead_id, created_at, metadata')
+      .in('lead_id', ids)
+      .eq('type', 'stage_change')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('contact_attempts')
+      .select('lead_id, sla_deadline, sla_breached')
+      .in('lead_id', ids)
+      .eq('sla_breached', false)
+      .not('sla_deadline', 'is', null)
+      .order('sla_deadline', { ascending: true }),
+    supabase
+      .from('contact_attempts')
+      .select('lead_id, attempt_number, outcome, attempted_at')
+      .in('lead_id', ids)
+      .order('attempt_number', { ascending: false }),
+    supabase
+      .from('appointments')
+      .select('id, lead_id, scheduled_at, confirmed, showed_up, created_by, assigned_to')
+      .in('lead_id', ids)
+      .is('showed_up', null)
+      .gte('scheduled_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order('scheduled_at', { ascending: true }),
+  ]);
 
   // Última troca de stage por lead + se ela foi uma REATIVAÇÃO (lead voltou via
   // novo formulário/mensagem espontânea) — o card rotula "voltou" vs "na etapa".
@@ -687,7 +734,7 @@ async function enrichLeads(
     }
   }
 
-  // Nomes da equipe (RLS-safe via função SECURITY DEFINER).
+  // Nomes da equipe (RLS preservada via função SECURITY INVOKER).
   const personById = new Map<string, { name: string; role: string }>();
   const personIds = [
     ...new Set(

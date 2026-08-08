@@ -19,10 +19,11 @@ export default async function MetaIntegrationPage() {
 
   const admin = createAdminClient();
   const status = getMetaConfigStatus();
-  const [webhookStatus, integrationStatus, whatsappInstances] = await Promise.all([
+  const [webhookStatus, integrationStatus, whatsappInstances, sectorsResult] = await Promise.all([
     getMetaWebhookStatus(admin),
     getMetaIntegrationStatus(admin),
     listWhatsappInstances(),
+    admin.from('sectors').select('id, name').eq('is_active', true).order('name'),
   ]);
 
   return (
@@ -42,7 +43,11 @@ export default async function MetaIntegrationPage() {
 
       <MetaLiveStatusCard status={integrationStatus} />
 
-      <MetaPanels status={status} whatsappInstances={whatsappInstances} />
+      <MetaPanels
+        status={status}
+        whatsappInstances={whatsappInstances}
+        sectors={sectorsResult.data ?? []}
+      />
     </section>
   );
 }

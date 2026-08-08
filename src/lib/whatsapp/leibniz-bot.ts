@@ -8,6 +8,7 @@ import {
 import type { OfficialVia } from '@/lib/meta/client';
 import type { Database, Json, Tables } from '@/types/database';
 import type { MessageType } from '@/types/chat';
+import { isBotSessionExpired } from '@/lib/whatsapp/bot-session';
 
 type DbClient = SupabaseClient<Database>;
 type BotSession = Tables<'conversation_bot_sessions'>;
@@ -250,7 +251,11 @@ async function updateSession(
   conversationId: string,
   patch: Partial<BotSession>,
 ): Promise<void> {
-  await admin.from('conversation_bot_sessions').update(patch).eq('conversation_id', conversationId);
+  const { error } = await admin
+    .from('conversation_bot_sessions')
+    .update(patch)
+    .eq('conversation_id', conversationId);
+  if (error) throw new Error(`Falha ao atualizar sessão do bot: ${error.message}`);
 }
 
 async function recordBotOutbound(
@@ -265,7 +270,7 @@ async function recordBotOutbound(
   },
 ): Promise<void> {
   const now = new Date().toISOString();
-  await admin.from('messages').insert({
+  const { error: messageError } = await admin.from('messages').insert({
     conversation_id: input.conversationId,
     direction: 'outbound',
     type: input.type,
@@ -277,7 +282,14 @@ async function recordBotOutbound(
     sent_at: now,
     metadata: { bot: { state: input.state } } as unknown as Json,
   });
-  await admin.from('conversations').update({ last_message_at: now }).eq('id', input.conversationId);
+  if (messageError) throw new Error(`Falha ao registrar mensagem do bot: ${messageError.message}`);
+  const { error: conversationError } = await admin
+    .from('conversations')
+    .update({ last_message_at: now })
+    .eq('id', input.conversationId);
+  if (conversationError) {
+    throw new Error(`Falha ao atualizar conversa do bot: ${conversationError.message}`);
+  }
   await updateSession(admin, input.conversationId, { last_bot_message_at: now });
 }
 
@@ -474,6 +486,25 @@ async function sendBotListOrHandoff(
   return delivered;
 }
 
+async function sendBotTextOrHandoff(
+  admin: DbClient,
+  input: BotInbound,
+  state: LeibnizBotState,
+  content: string,
+): Promise<boolean> {
+  const delivered = await sendBotText(admin, input, state, content);
+  if (!delivered) {
+    await handoff(
+      admin,
+      input,
+      'comercial',
+      'Falha ao enviar uma pergunta do atendimento automático',
+      'O atendimento automático teve uma falha. A equipe de Comercial & Matrículas foi avisada e continuará por aqui.',
+    );
+  }
+  return delivered;
+}
+
 function differentialsFor(segment: string | undefined): string {
   const base =
     'Ótimo! Veja alguns diferenciais do Leibniz:\n\n📐 Intensificação em Matemática e Língua Portuguesa\n🌎 Projeto Bilíngue com 5 aulas semanais de inglês\n💰 Educação Financeira\n🎭 Teatro e 🤖 Robótica\n🌳 Projeto Raízes e Câmara de Avanço de Matemática\n⚽ Atividades extracurriculares.';
@@ -635,10 +666,11 @@ export async function isLeibnizBotHandling(
   if (isNewConversation) return true;
   const { data } = await admin
     .from('conversation_bot_sessions')
-    .select('state')
+    .select('state, updated_at')
     .eq('conversation_id', conversationId)
     .maybeSingle();
-  return data ? ACTIVE_STATES.has(data.state as LeibnizBotState) : false;
+  if (!data || isBotSessionExpired(data.updated_at)) return true;
+  return ACTIVE_STATES.has(data.state as LeibnizBotState);
 }
 
 /** Processa uma mensagem recebida usando o roteiro institucional determinístico. */
@@ -652,7 +684,6 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
     .maybeSingle();
 
   if (!session) {
-    if (!input.isNewConversation) return;
     const created = await admin
       .from('conversation_bot_sessions')
       .insert({
@@ -664,6 +695,18 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
       .single();
     if (!created.data) return;
     session = created.data;
+    await sendBotListOrHandoff(admin, input, 'awaiting_sector', SECTOR_MENU);
+    return;
+  }
+
+  if (isBotSessionExpired(session.updated_at)) {
+    await updateSession(admin, input.conversationId, {
+      state: 'awaiting_sector',
+      context: {} as Json,
+      fallback_count: 0,
+      selected_sector_id: null,
+      routed_at: null,
+    });
     await sendBotListOrHandoff(admin, input, 'awaiting_sector', SECTOR_MENU);
     return;
   }
@@ -694,7 +737,7 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
       state: 'sales_awaiting_name',
       fallback_count: 0,
     });
-    await sendBotText(
+    await sendBotTextOrHandoff(
       admin,
       input,
       'sales_awaiting_name',
@@ -724,12 +767,15 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
         fallback_count: 0,
       }),
     ]);
-    await sendBotText(
-      admin,
-      input,
-      'sales_awaiting_interest',
-      `${responsibleName}, antes de mais nada, deixa eu te contar rapidinho quem é o Leibniz 🎓\n\nSomos uma Escola de Resultados de Alto Impacto, com intensificação em Matemática e Língua Portuguesa, Projeto Bilíngue, Educação Financeira, Teatro, Robótica, Banca Literária e acompanhamento constante da família.`,
-    );
+    if (
+      !(await sendBotTextOrHandoff(
+        admin,
+        input,
+        'sales_awaiting_interest',
+        `${responsibleName}, antes de mais nada, deixa eu te contar rapidinho quem é o Leibniz 🎓\n\nSomos uma Escola de Resultados de Alto Impacto, com intensificação em Matemática e Língua Portuguesa, Projeto Bilíngue, Educação Financeira, Teatro, Robótica, Banca Literária e acompanhamento constante da família.`,
+      ))
+    )
+      return;
     await sendBotListOrHandoff(admin, input, 'sales_awaiting_interest', INTEREST_MENU);
     return;
   }
@@ -777,7 +823,7 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
       context: { ...context, segment } as unknown as Json,
       fallback_count: 0,
     });
-    await sendBotText(
+    await sendBotTextOrHandoff(
       admin,
       input,
       'sales_awaiting_age_or_grade',
@@ -807,7 +853,15 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
       context: nextContext as unknown as Json,
       fallback_count: 0,
     });
-    await sendBotText(admin, input, 'sales_awaiting_next_step', differentialsFor(context.segment));
+    if (
+      !(await sendBotTextOrHandoff(
+        admin,
+        input,
+        'sales_awaiting_next_step',
+        differentialsFor(context.segment),
+      ))
+    )
+      return;
     await sendBotListOrHandoff(admin, input, 'sales_awaiting_next_step', NEXT_STEP_MENU);
     return;
   }
@@ -840,7 +894,7 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
         state: 'sales_awaiting_visit_availability',
         fallback_count: 0,
       });
-      await sendBotText(
+      await sendBotTextOrHandoff(
         admin,
         input,
         'sales_awaiting_visit_availability',
@@ -867,7 +921,7 @@ export async function handleLeibnizBotInbound(admin: DbClient, input: BotInbound
       context: { ...context, availability: text } as unknown as Json,
       fallback_count: 0,
     });
-    await sendBotText(
+    await sendBotTextOrHandoff(
       admin,
       input,
       'sales_awaiting_student_data',

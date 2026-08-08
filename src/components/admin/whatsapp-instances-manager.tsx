@@ -27,6 +27,7 @@ function timeAgoLabel(iso: string | null): string {
 interface WhatsappInstancesManagerProps {
   instances: WhatsappInstanceRow[];
   webhookUrl: string;
+  sectors: Array<{ id: string; name: string }>;
 }
 
 /**
@@ -34,7 +35,11 @@ interface WhatsappInstancesManagerProps {
  * API da Meta. O
  * badge colorido com a sigla identifica a instância nas conversas do /chat.
  */
-export function WhatsappInstancesManager({ instances, webhookUrl }: WhatsappInstancesManagerProps) {
+export function WhatsappInstancesManager({
+  instances,
+  webhookUrl,
+  sectors,
+}: WhatsappInstancesManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -205,6 +210,7 @@ export function WhatsappInstancesManager({ instances, webhookUrl }: WhatsappInst
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         instance={editing}
+        sectors={sectors}
       />
     </div>
   );

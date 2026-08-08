@@ -98,6 +98,7 @@ export async function GET(req: NextRequest) {
     .from('whatsapp_instances')
     .select('id, phone_number_id')
     .eq('provider', 'official')
+    .eq('is_active', true)
     .eq('phone_number_id', metaEnv.whatsappPhoneNumberId ?? '')
     .maybeSingle();
   if (!sdInstance) return NextResponse.json({ skipped: 'instância oficial não cadastrada' });
@@ -171,6 +172,7 @@ export async function GET(req: NextRequest) {
       .select('id')
       .eq('channel', 'whatsapp')
       .in('external_id', variants)
+      .eq('whatsapp_instance_id', sdInstance.id)
       .maybeSingle();
     let conversationId = existingConv?.id ?? null;
     if (conversationId) {
@@ -196,7 +198,7 @@ export async function GET(req: NextRequest) {
             waba_id: sdInstance.phone_number_id,
             contact_name: lead.name,
           },
-          { onConflict: 'channel,external_id' },
+          { onConflict: 'channel,external_id,whatsapp_instance_id' },
         )
         .select('id')
         .single();

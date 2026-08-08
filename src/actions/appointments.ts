@@ -367,7 +367,7 @@ export interface CalendarAppointment {
 
 /**
  * Visitas num intervalo [from, to) para a tela de calendário. Nomes resolvidos
- * via RPC SECURITY DEFINER. RLS aplica o escopo.
+ * via RPC SECURITY INVOKER. RLS aplica o escopo.
  */
 export async function getAppointmentsForCalendar(
   fromIso: string,

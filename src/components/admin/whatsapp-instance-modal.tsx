@@ -25,9 +25,15 @@ interface WhatsappInstanceModalProps {
   onClose: () => void;
   /** Instância a editar; null cria uma nova. */
   instance: WhatsappInstanceRow | null;
+  sectors: Array<{ id: string; name: string }>;
 }
 
-export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInstanceModalProps) {
+export function WhatsappInstanceModal({
+  open,
+  onClose,
+  instance,
+  sectors,
+}: WhatsappInstanceModalProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState('');
@@ -40,6 +46,7 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
   const [phoneNumberId, setPhoneNumberId] = useState('');
   const [botEnabled, setBotEnabled] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [sectorId, setSectorId] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +59,8 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
     setPhoneNumberId(instance?.phone_number_id ?? '');
     setBotEnabled(instance?.bot_enabled ?? false);
     setIsActive(instance?.is_active ?? true);
-  }, [open, instance]);
+    setSectorId(instance?.sector_id ?? sectors[0]?.id ?? '');
+  }, [open, instance, sectors]);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -66,6 +74,7 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
       phoneNumberId: phoneNumberId.trim() || null,
       botEnabled: provider === 'official' && botEnabled,
       isActive,
+      sectorId,
     };
     startTransition(async () => {
       const result = instance
@@ -140,6 +149,20 @@ export function WhatsappInstanceModal({ open, onClose, instance }: WhatsappInsta
           {WHATSAPP_PROVIDERS.map((p) => (
             <option key={p} value={p}>
               {WHATSAPP_PROVIDER_LABELS[p]}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          label="Setor responsável"
+          value={sectorId}
+          onChange={(e) => setSectorId(e.target.value)}
+          required
+        >
+          <option value="">Selecione o setor</option>
+          {sectors.map((sector) => (
+            <option key={sector.id} value={sector.id}>
+              {sector.name}
             </option>
           ))}
         </Select>

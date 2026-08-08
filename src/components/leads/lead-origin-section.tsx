@@ -72,10 +72,7 @@ function formatDateTime(value: string): string {
 
 /** Comparações sem acento/caixa (perguntas do formulário variam a grafia). */
 function normalize(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase();
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 }
 
 function isYes(answer: string): boolean {
@@ -307,6 +304,38 @@ function EntryView({ entry, framed }: { entry: MetaLeadEntry; framed: boolean })
         </div>
       )}
       <Hierarchy items={items} />
+      {entry.adId && (
+        <a
+          href={`https://www.facebook.com/adsmanager/manage/ads?selected_ad_ids=${encodeURIComponent(entry.adId)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-flex text-xs font-medium text-[#1877F2] hover:underline"
+        >
+          Abrir anúncio no Gerenciador de Anúncios ↗
+        </a>
+      )}
+      {(entry.leadgenId || entry.formId) && (
+        <div className="mt-3 flex flex-col gap-1 border-t border-[#E7E5E4] pt-3">
+          <FooterRow label="Leadgen ID" value={entry.leadgenId} />
+          <FooterRow label="Form ID" value={entry.formId} />
+        </div>
+      )}
+      {entry.formAnswers.length > 0 && (
+        <div className="mt-3 border-t border-[#E7E5E4] pt-3">
+          <h5 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#57534E]">
+            Respostas desta entrada
+          </h5>
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-[#E7E5E4] bg-[#E7E5E4] max-[520px]:grid-cols-1">
+            {entry.formAnswers.map((answer, index) => (
+              <QaCell
+                key={`${answer.question}-${index}`}
+                question={answer.question}
+                answer={answer.answer}
+              />
+            ))}
+          </div>
+        </div>
+      )}
       {!framed && (
         <div className="mt-3 border-t border-[#E7E5E4] pt-3">
           <FooterRow label="Entrou em" value={formatDateTime(entry.at)} />
@@ -452,10 +481,7 @@ export function LeadOriginSection({ lead, entries = [], activities = [] }: LeadO
                 : ''
             }`}
           >
-            <FooterRow
-              label={reentry ? 'Primeira entrada' : 'Entrou em'}
-              value={firstEntryValue}
-            />
+            <FooterRow label={reentry ? 'Primeira entrada' : 'Entrou em'} value={firstEntryValue} />
             {reentry && (
               <FooterRow
                 label="Voltou em"
@@ -471,7 +497,7 @@ export function LeadOriginSection({ lead, entries = [], activities = [] }: LeadO
       )}
 
       {/* Respostas do formulário */}
-      {answers.length > 0 && (
+      {!hasHistory && answers.length > 0 && (
         <div className="px-4 pb-4 pt-4">
           <h5 className="mb-3.5 text-[13px] font-bold uppercase tracking-[0.08em] text-[#57534E]">
             Respostas do formulário {hasReentry ? '(última entrada)' : ''}

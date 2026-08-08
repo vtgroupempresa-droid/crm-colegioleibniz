@@ -6,7 +6,11 @@ import { Tabs, type TabItem } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { getLeadForms, previewTestLeadAds, type TestLeadPreview } from '@/actions/meta-integrations';
+import {
+  getLeadForms,
+  previewTestLeadAds,
+  type TestLeadPreview,
+} from '@/actions/meta-integrations';
 import type { LeadForm } from '@/lib/meta/client';
 import type { MetaConfigStatus } from '@/lib/meta/config';
 import { WhatsappInstancesManager } from '@/components/admin/whatsapp-instances-manager';
@@ -15,6 +19,7 @@ import type { WhatsappInstanceRow } from '@/actions/whatsapp-instances';
 interface MetaPanelsProps {
   status: MetaConfigStatus;
   whatsappInstances: WhatsappInstanceRow[];
+  sectors: Array<{ id: string; name: string }>;
 }
 
 function StatusBadge({ ok }: { ok: boolean }) {
@@ -34,9 +39,9 @@ function useWebhookUrl(): string {
 function NotConfiguredHint() {
   return (
     <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-      Credenciais ainda não configuradas. Adicione as variáveis da Meta no{' '}
-      <code>.env.local</code> (veja <code>.env.example</code>) e reinicie o app. A estrutura já
-      está pronta — assim que as credenciais chegarem, tudo passa a funcionar.
+      Credenciais ainda não configuradas. Adicione as variáveis da Meta no <code>.env.local</code>{' '}
+      (veja <code>.env.example</code>) e reinicie o app. A estrutura já está pronta — assim que as
+      credenciais chegarem, tudo passa a funcionar.
     </p>
   );
 }
@@ -139,7 +144,8 @@ function LeadAdsTab({ status }: { status: MetaConfigStatus }) {
               {testLead.campaignTheme && (
                 <>
                   {' '}
-                  · tema: <span className="font-medium text-brand-700">{testLead.campaignTheme}</span>
+                  · tema:{' '}
+                  <span className="font-medium text-brand-700">{testLead.campaignTheme}</span>
                 </>
               )}
             </p>
@@ -160,9 +166,11 @@ function LeadAdsTab({ status }: { status: MetaConfigStatus }) {
 function WhatsappTab({
   status,
   instances,
+  sectors,
 }: {
   status: MetaConfigStatus;
   instances: WhatsappInstanceRow[];
+  sectors: Array<{ id: string; name: string }>;
 }) {
   const webhookUrl = useWebhookUrl();
   const connectedInstance = instances.find((instance) => instance.is_connected);
@@ -199,7 +207,7 @@ function WhatsappTab({
             Gerencie a linha oficial, o bot institucional e o menu automático de setores.
           </p>
         </div>
-        <WhatsappInstancesManager instances={instances} webhookUrl={webhookUrl} />
+        <WhatsappInstancesManager instances={instances} webhookUrl={webhookUrl} sectors={sectors} />
       </Card>
     </div>
   );
@@ -237,13 +245,13 @@ function InstagramTab({ status }: { status: MetaConfigStatus }) {
   );
 }
 
-export function MetaPanels({ status, whatsappInstances }: MetaPanelsProps) {
+export function MetaPanels({ status, whatsappInstances, sectors }: MetaPanelsProps) {
   const tabs: TabItem[] = [
     { id: 'leadads', label: 'Lead Ads', content: <LeadAdsTab status={status} /> },
     {
       id: 'whatsapp',
       label: 'WhatsApp',
-      content: <WhatsappTab status={status} instances={whatsappInstances} />,
+      content: <WhatsappTab status={status} instances={whatsappInstances} sectors={sectors} />,
     },
     { id: 'instagram', label: 'Instagram', content: <InstagramTab status={status} /> },
   ];

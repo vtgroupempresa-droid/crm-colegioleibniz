@@ -882,7 +882,6 @@ export function ConversationView({
         toast.error('Falha no upload do anexo');
         return;
       }
-      const { data } = supabase.storage.from('chat-media').getPublicUrl(path);
       const type: MessageType = payload.contentType.startsWith('image/')
         ? 'image'
         : payload.contentType.startsWith('video/')
@@ -893,7 +892,7 @@ export function ConversationView({
       const sent = await onSend(
         type === 'document' ? payload.name : '',
         type,
-        data.publicUrl,
+        path,
         replyingTo?.id ?? null,
       );
       if (sent) setReplyingTo(null);
@@ -994,8 +993,7 @@ export function ConversationView({
         toast.error('Falha ao enviar o áudio');
         return;
       }
-      const { data } = supabase.storage.from('chat-media').getPublicUrl(path);
-      const sent = await onSend('', 'audio', data.publicUrl, replyingTo?.id ?? null);
+      const sent = await onSend('', 'audio', path, replyingTo?.id ?? null);
       if (sent) setReplyingTo(null);
     } catch {
       toast.error('Falha ao converter o áudio — tente de novo.');
